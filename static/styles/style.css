@@ -1,0 +1,43 @@
+*{
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body{
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    background: linear-gradient(rgb(47,150,163), rgb(48,62,143));
+    font-family: sans-serif;
+    color: white;
+}
+
+#table-wrapper{
+    position: relative;
+}
+
+#table-scroll{
+    height:150px;
+    overflow:auto;
+    margin-top:20px;
+}
+#table-wrapper table{
+    width:100%;
+}
+
+#table-wrapper table *{
+    background:white;
+    color:black;
+}
+
+#table-wrapper table thead th .text{
+    position:absolute;
+    top:-20px;
+    z-index:2;
+    height:20px;
+    width:35%;
+    border:1px solid red;
+}
