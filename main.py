@@ -1,25 +1,13 @@
-from flask import Flask, redirect, url_for, render_template, request, flash
+from flask import Flask, redirect, url_for, render_template, request, flash, g
 import os
 from werkzeug.utils import secure_filename
 import pandas as pd
-
+pd.options.display.precision = 10
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 UPLOAD_FOLDER = 'static/files'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 ALLOW_EXTENSIONS = {'csv'}
-currencyTotals = {
-    'CAD': 0,
-    'BTC': 0,
-    'ETH': 0,
-}
-averageCost = {
-    'CAD': 0,
-    'BTC': 0,
-    'ETH': 0,
-}
-
-incomeGain = 0
 
 
 def allowedFile(filename):
@@ -31,9 +19,20 @@ def allowedFile(filename):
 def indexPage():
     return render_template("index.html")
 
+def setup():
+    g.totalCAD = 0
+    g.totalBTC = 0
+    g.totalETH = 0
+    g.avgCAD = 0
+    g.avgBTC = 0
+    g.avgETH = 0
+    g.incomeGain = 0
+    g.capitalGain = 0
+
 
 @app.route('/', methods=['POST'])
 def processTax():
+    setup()
     # get uploaded file
     if request.method == 'POST':
         if 'file' not in request.files:
@@ -52,60 +51,123 @@ def processTax():
             file.save(file_path)
             table = parseCSV(file_path)
             calculateTax(table)
-        return render_template("processTax.html", table=table.to_html())
+        return render_template("processTax.html", table=table.to_html(), incomeGain = g.incomeGain,capitalGain = g.capitalGain )
 
 
 def parseCSV(filePath):
     df = pd.read_csv(filePath)
     df["Date"] = df["Date"].str.replace('T', ' ')
-    df["Date"] = df["Date"].str.replace(r'\+00', ' UTC')
+    df["Date"] = df["Date"].str[:-3]
     return df.fillna("")
 
+# get how much of a currency does the user have
+def getCurrencyTotals(currency):
+    if currency == "CAD":
+        return g.totalCAD
+    elif currency == "BTC":
+        return g.totalBTC
+    elif currency == "ETH":
+        return g.totalETH
+    return 0
+
+# set much of a currency does the user have
+def setCurrencyTotals(currency, amount):
+    if currency == "CAD":
+        g.totalCAD = amount
+    elif currency == "BTC":
+        g.totalBTC = amount
+    elif currency == "ETH":
+        g.totalETH = amount
+
+# get the average cost of a currency
+def getAvgCost(currency):
+    if currency == "CAD":
+        return g.avgCAD
+    elif currency == "BTC":
+        return g.avgBTC
+    elif currency == "ETH":
+        return g.avgETH
+    return 0
+
+
+def setAvgCost(currency, amount):
+    if currency == "CAD":
+        g.avgCAD = amount
+    elif currency == "BTC":
+         g.avgBTC = amount
+    elif currency == "ETH":
+        g.avgETH = amount
 
 def peerTransfer(row):
-    global incomeGain
+    incomeGain = g.incomeGain
+
     if row["Credit/Debit"] == "credit":
         credit = row["Amount Credited"]
         creditCurrency = row["Credit Currency"]
-        totalCreditCurrency = currencyTotals[creditCurrency]
-
-        incomeGain += credit * row["Spot Rate"]
-        currentAvg = averageCost[creditCurrency]
-        averageCost[creditCurrency] = (currentAvg * totalCreditCurrency) + (row["Spot Rate"] * credit) / (
+        totalCreditCurrency = getCurrencyTotals(creditCurrency)
+        if row["Spot Rate"] == "":
+            incomeGain += credit * getAvgCost(creditCurrency)
+        else:
+            incomeGain += credit * row["Spot Rate"]
+            currentAvg = getAvgCost(creditCurrency)
+            newAvg = (currentAvg * totalCreditCurrency) + (row["Spot Rate"] * credit) / (
                 totalCreditCurrency + credit)
-        currencyTotals[creditCurrency] += credit
+            setAvgCost(creditCurrency, newAvg)
+        setCurrencyTotals(creditCurrency, totalCreditCurrency + credit)
 
+    g.incomeGain = incomeGain
 
 def fiatFunding(row):
     if row["Credit/Debit"] == "credit":
         credit = row["Amount Credited"]
         currency = row["Credit Currency"]
-        currencyTotals[currency] += credit
+        totalCurrency = getCurrencyTotals(currency)
+        setCurrencyTotals(currency, totalCurrency + credit)
 
 
 def purchaseSale(row):
+    capitalGain = g.capitalGain
     # credit
     credit = row["Amount Credited"]
     creditCurrency = row["Credit Currency"]
-    totalCreditCurrency = currencyTotals[creditCurrency]
+    totalCreditCurrency = getCurrencyTotals(creditCurrency)
     buyPrice = row["Buy/Sell rate"]
-    currentAvg = averageCost[creditCurrency]
-    averageCost[creditCurrency] = (currentAvg * totalCreditCurrency) + (buyPrice * credit) / (totalCreditCurrency
-                                                                                              + credit)
-    currencyTotals[creditCurrency] += credit
+    currentAvg = getAvgCost(creditCurrency)
+    newAvg = (currentAvg * totalCreditCurrency) + (buyPrice * credit) / (totalCreditCurrency + credit)
+    setAvgCost(creditCurrency, newAvg)
+    setCurrencyTotals(creditCurrency, totalCreditCurrency + credit)
     # debit
     debit = row["Amount Debited"]
     debitCurrency = row["Debit Currency"]
-    totalDebitCurrency = currencyTotals[debitCurrency]
-    sellPrice = averageCost[debitCurrency]
+    totalDebitCurrency = getCurrencyTotals(debitCurrency)
+    avgDebitPrice = getAvgCost(debitCurrency)
+    setCurrencyTotals(debitCurrency, totalDebitCurrency - debit)
+    # the sale of crypto to fiat (taxable event)
+    if creditCurrency == "CAD":
+        salePrice = (1 - debit) / debit * credit + credit
+        costToObtain = 0
+        if avgDebitPrice != 0:
+            costToObtain = (1 - avgDebitPrice) / avgDebitPrice * credit + credit
+        gain = credit - costToObtain
+        capitalGain += gain
 
+    g.capitalGain = capitalGain
 
-def cryptoCashout():
+def cryptoCashout(row):
     print("cash")
 
 
-def referralReward():
+
+def referralReward(row):
     print("referral Reward")
+
+
+def cryptoFunding(row):
+    print("crypto funding")
+
+
+def fiatCashout(row):
+    print("fiat cashout")
 
 
 TRANSACTION_PARSE = {
@@ -114,7 +176,8 @@ TRANSACTION_PARSE = {
     "purchase/sale": purchaseSale,
     "crypto cashout": cryptoCashout,
     "referral reward": referralReward,
-
+    "crypto funding": cryptoFunding,
+    "fiat cashout": fiatCashout,
 }
 
 
