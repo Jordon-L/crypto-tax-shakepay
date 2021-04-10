@@ -55,8 +55,6 @@ def processTax():
             file.save(file_path)
             table = parseCSV(file_path)
             calculateTax(table)
-            print(g.avgETH)
-            print(g.avgBTC)
         return render_template("processTax.html", table=table.to_html(), incomeGain = g.incomeGain, capitalGain = g.capitalGain, capitalLoss = g.capitalLoss, totalBTC = g.totalBTC, totalETH = g.totalETH, totalCAD = g.totalCAD,
                                bankTransferOut = g.bankTransferOutCAD)
 
@@ -212,7 +210,7 @@ def referralReward(row):
 
 
 def cryptoFunding(row):
-    print("crypto funding")
+    return 0
 
 
 # store the amount of fiat transfer to a bank
