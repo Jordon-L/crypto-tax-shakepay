@@ -68,7 +68,7 @@ def parseCSV(filePath):
     return df.fillna("")
 
 
-# get how much of a currency does the user have
+# Get amount of a currency in the user's possession
 def getCurrencyTotals(currency):
     if currency == "CAD":
         return g.totalCAD
@@ -79,7 +79,7 @@ def getCurrencyTotals(currency):
     return 0
 
 
-# set much of a currency does the user have
+# Set amount of a currency in the user's possession
 def setCurrencyTotals(currency, amount):
     if amount < 0:
         amount = 0
@@ -91,7 +91,7 @@ def setCurrencyTotals(currency, amount):
         g.totalETH = amount
 
 
-# get the average cost of a currency
+# Get the average cost of a currency in the user's possession
 def getAvgCost(currency):
     if currency == "CAD":
         return g.avgCAD
@@ -102,6 +102,7 @@ def getAvgCost(currency):
     return 0
 
 
+# Set the average cost of a currency in the user's possession
 def setAvgCost(currency, amount):
     if currency == "CAD":
         g.avgCAD = amount
@@ -111,6 +112,7 @@ def setAvgCost(currency, amount):
         g.avgETH = amount
 
 
+# Calculate the income gain from receiving a currency and adjust the average cost
 def peerTransfer(row):
     incomeGain = g.incomeGain
 
@@ -131,14 +133,17 @@ def peerTransfer(row):
     g.incomeGain = incomeGain
 
 
+# increase amount of fiat the user's possession
 def fiatFunding(row):
     if row["Credit/Debit"] == "credit":
         credit = row["Amount Credited"]
         currency = row["Credit Currency"]
-        totalCurrency = getCurrencyTotals(currency)
-        setCurrencyTotals(currency, totalCurrency + credit)
+        if currency == "CAD":
+            totalCurrency = getCurrencyTotals(currency)
+            setCurrencyTotals(currency, totalCurrency + credit)
 
 
+# Calculate the capital gain and loss when a transaction exchanges a currency for a different currency
 def purchaseSale(row):
     capitalGain = g.capitalGain
     capitalLoss = g.capitalLoss
@@ -173,6 +178,8 @@ def purchaseSale(row):
 
     g.capitalGain = capitalGain
 
+
+# Calculate capital gain or loss when transferring crypto outside of shakepay
 def cryptoCashout(row):
     capitalGain = g.capitalGain
     capitalLoss = g.capitalLoss
@@ -195,7 +202,7 @@ def cryptoCashout(row):
         g.capitalGain = capitalGain
 
 
-
+# Calculate income gain from referral rewards
 def referralReward(row):
     incomeGain = g.incomeGain
     credit = row["Amount Credited"]
@@ -208,6 +215,7 @@ def cryptoFunding(row):
     print("crypto funding")
 
 
+# store the amount of fiat transfer to a bank
 def fiatCashout(row):
     bankTransfer = g.bankTransferOutCAD
     debit = row["Amount Debited"]
