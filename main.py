@@ -32,6 +32,7 @@ def setup():
     g.capitalLoss = 0
     g.bankTransferOutCAD = 0
 
+
 # process income gain and capital gain using csv from shakepay, then display
 @app.route('/', methods=['POST'])
 def processTax():
@@ -66,6 +67,7 @@ def parseCSV(filePath):
     df["Date"] = df["Date"].str[:-3]
     return df.fillna("")
 
+
 # get how much of a currency does the user have
 def getCurrencyTotals(currency):
     if currency == "CAD":
@@ -75,6 +77,7 @@ def getCurrencyTotals(currency):
     elif currency == "ETH":
         return g.totalETH
     return 0
+
 
 # set much of a currency does the user have
 def setCurrencyTotals(currency, amount):
@@ -86,6 +89,7 @@ def setCurrencyTotals(currency, amount):
         g.totalBTC = amount
     elif currency == "ETH":
         g.totalETH = amount
+
 
 # get the average cost of a currency
 def getAvgCost(currency):
@@ -106,6 +110,7 @@ def setAvgCost(currency, amount):
     elif currency == "ETH":
         g.avgETH = amount
 
+
 def peerTransfer(row):
     incomeGain = g.incomeGain
 
@@ -124,6 +129,7 @@ def peerTransfer(row):
         setCurrencyTotals(creditCurrency, totalCreditCurrency + credit)
 
     g.incomeGain = incomeGain
+
 
 def fiatFunding(row):
     if row["Credit/Debit"] == "credit":
@@ -209,6 +215,7 @@ def fiatCashout(row):
     if debitCurrency == "CAD":
         bankTransfer += debit
     g.bankTransferOutCAD = bankTransfer
+
 
 TRANSACTION_PARSE = {
     "peer transfer": peerTransfer,
