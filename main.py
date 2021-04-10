@@ -19,6 +19,7 @@ def allowedFile(filename):
 def indexPage():
     return render_template("index.html")
 
+
 def setup():
     g.totalCAD = 0
     g.totalBTC = 0
@@ -28,8 +29,10 @@ def setup():
     g.avgETH = 0
     g.incomeGain = 0
     g.capitalGain = 0
+    g.capitalLoss = 0
+    g.bankTransferOutCAD = 0
 
-
+# process income gain and capital gain using csv from shakepay, then display
 @app.route('/', methods=['POST'])
 def processTax():
     setup()
@@ -51,7 +54,10 @@ def processTax():
             file.save(file_path)
             table = parseCSV(file_path)
             calculateTax(table)
-        return render_template("processTax.html", table=table.to_html(), incomeGain = g.incomeGain,capitalGain = g.capitalGain )
+            print(g.avgETH)
+            print(g.avgBTC)
+        return render_template("processTax.html", table=table.to_html(), incomeGain = g.incomeGain, capitalGain = g.capitalGain, capitalLoss = g.capitalLoss, totalBTC = g.totalBTC, totalETH = g.totalETH, totalCAD = g.totalCAD,
+                               bankTransferOut = g.bankTransferOutCAD)
 
 
 def parseCSV(filePath):
@@ -72,6 +78,8 @@ def getCurrencyTotals(currency):
 
 # set much of a currency does the user have
 def setCurrencyTotals(currency, amount):
+    if amount < 0:
+        amount = 0
     if currency == "CAD":
         g.totalCAD = amount
     elif currency == "BTC":
@@ -106,7 +114,7 @@ def peerTransfer(row):
         creditCurrency = row["Credit Currency"]
         totalCreditCurrency = getCurrencyTotals(creditCurrency)
         if row["Spot Rate"] == "":
-            incomeGain += credit * getAvgCost(creditCurrency)
+            incomeGain += 0
         else:
             incomeGain += credit * row["Spot Rate"]
             currentAvg = getAvgCost(creditCurrency)
@@ -127,6 +135,7 @@ def fiatFunding(row):
 
 def purchaseSale(row):
     capitalGain = g.capitalGain
+    capitalLoss = g.capitalLoss
     # credit
     credit = row["Amount Credited"]
     creditCurrency = row["Credit Currency"]
@@ -149,17 +158,44 @@ def purchaseSale(row):
         if avgDebitPrice != 0:
             costToObtain = (1 - avgDebitPrice) / avgDebitPrice * credit + credit
         gain = credit - costToObtain
-        capitalGain += gain
+        if gain < 0:
+            capitalLoss += gain
+            g.capitalLoss = capitalLoss
+        elif gain >= 0:
+            capitalGain += gain
+            g.capitalGain = capitalGain
 
     g.capitalGain = capitalGain
 
 def cryptoCashout(row):
-    print("cash")
+    capitalGain = g.capitalGain
+    capitalLoss = g.capitalLoss
+    debit = row["Amount Debited"]
+    debitCurrency = row["Debit Currency"]
+    totalDebitCurrency = getCurrencyTotals(debitCurrency)
+    avgDebitPrice = getAvgCost(debitCurrency)
+    setCurrencyTotals(debitCurrency, totalDebitCurrency - debit)
+    salePrice = row["Spot Rate"]
+    costToObtain = 0
+    credit = salePrice * debit
+    if avgDebitPrice != 0:
+        costToObtain = avgDebitPrice * debit
+    gain = credit - costToObtain
+    if gain < 0:
+        capitalLoss += gain
+        g.capitalLoss = capitalLoss
+    elif gain >= 0:
+        capitalGain += gain
+        g.capitalGain = capitalGain
 
 
 
 def referralReward(row):
-    print("referral Reward")
+    incomeGain = g.incomeGain
+    credit = row["Amount Credited"]
+    creditCurrency = row["Credit Currency"]
+    if creditCurrency == "CAD":
+        g.incomeGain = incomeGain + credit
 
 
 def cryptoFunding(row):
@@ -167,8 +203,12 @@ def cryptoFunding(row):
 
 
 def fiatCashout(row):
-    print("fiat cashout")
-
+    bankTransfer = g.bankTransferOutCAD
+    debit = row["Amount Debited"]
+    debitCurrency = row["Debit Currency"]
+    if debitCurrency == "CAD":
+        bankTransfer += debit
+    g.bankTransferOutCAD = bankTransfer
 
 TRANSACTION_PARSE = {
     "peer transfer": peerTransfer,
