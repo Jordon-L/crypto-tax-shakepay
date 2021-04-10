@@ -5,7 +5,7 @@ import pandas as pd
 pd.options.display.precision = 10
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
-UPLOAD_FOLDER = 'static/files'
+UPLOAD_FOLDER = '/tmp'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 ALLOW_EXTENSIONS = {'csv'}
 
