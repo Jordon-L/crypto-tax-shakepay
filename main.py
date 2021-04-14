@@ -2,6 +2,8 @@ from flask import Flask, redirect, url_for, render_template, request, flash, g
 import os
 from werkzeug.utils import secure_filename
 import pandas as pd
+from EthScanTransactions import *
+
 pd.options.display.precision = 10
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -41,19 +43,23 @@ def processTax():
     if request.method == 'POST':
         if 'file' not in request.files:
             flash('no file part')
-            return redirect(url_for('index'))
+            return redirect(url_for('indexPage'))
         file = request.files['file']
         if file.filename == '':
             flash("No selected file")
-            return redirect(url_for('index'))
+            return redirect(url_for('indexPage'))
         if not (allowedFile(file.filename)):
             flash("only .csv files are allowed")
-            return redirect(url_for('index'))
+            return redirect(url_for('indexPage'))
         if file and allowedFile(file.filename):
             filename = secure_filename(file.filename)
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(file_path)
-            table = parseCSV(file_path)
+            # remove absolute_path when deploying and change to file_path
+            absolute_path = os.path.abspath("tmp/" + filename)
+            file.save(absolute_path)
+            table = parseCSV(absolute_path)
+            walletAddresses = request.form['wallet-address']
+            g.walletAddresses = walletAddresses
             calculateTax(table)
         return render_template("processTax.html", table=table.to_html(), incomeGain = g.incomeGain, capitalGain = g.capitalGain, capitalLoss = g.capitalLoss, totalBTC = g.totalBTC, totalETH = g.totalETH, totalCAD = g.totalCAD,
                                bankTransferOut = g.bankTransferOutCAD)
@@ -61,8 +67,12 @@ def processTax():
 
 def parseCSV(filePath):
     df = pd.read_csv(filePath)
-    df["Date"] = df["Date"].str.replace('T', ' ')
     df["Date"] = df["Date"].str[:-3]
+    df["Date"] = pd.to_datetime(df["Date"])
+    df["Date"] = (df["Date"] - pd.Timestamp("1970-01-01")) // pd.Timedelta("1s")
+    df["Taken From"] = "Shakepay"
+    ethDf = getEthTransactions()
+
     return df.fillna("")
 
 
@@ -179,6 +189,7 @@ def purchaseSale(row):
 
 # Calculate capital gain or loss when transferring crypto outside of shakepay
 def cryptoCashout(row):
+    address = row["Address"]
     capitalGain = g.capitalGain
     capitalLoss = g.capitalLoss
     debit = row["Amount Debited"]
@@ -189,15 +200,16 @@ def cryptoCashout(row):
     salePrice = row["Spot Rate"]
     costToObtain = 0
     credit = salePrice * debit
-    if avgDebitPrice != 0:
-        costToObtain = avgDebitPrice * debit
-    gain = credit - costToObtain
-    if gain < 0:
-        capitalLoss += gain
-        g.capitalLoss = capitalLoss
-    elif gain >= 0:
-        capitalGain += gain
-        g.capitalGain = capitalGain
+    if address != g.walletAddresses:
+        if avgDebitPrice != 0:
+            costToObtain = avgDebitPrice * debit
+        gain = credit - costToObtain
+        if gain < 0:
+            capitalLoss += gain
+            g.capitalLoss = capitalLoss
+        elif gain >= 0:
+            capitalGain += gain
+            g.capitalGain = capitalGain
 
 
 # Calculate income gain from referral rewards
