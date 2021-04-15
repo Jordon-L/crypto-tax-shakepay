@@ -259,7 +259,7 @@ TRANSACTION_PARSE = {
     "referral reward": referralReward,
     "crypto funding": cryptoFunding,
     "fiat cashout": fiatCashout,
-    "Receive" : walletReceive,
+    "Receive": walletReceive,
 }
 
 

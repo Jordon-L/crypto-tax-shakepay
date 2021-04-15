@@ -60,7 +60,7 @@ def getEthTransactions_ShakepayFormat(walletAddress, currency, fiat):
         if row["from"].lower() == walletAddress.lower():
             dfShakepay = dfShakepay.append({"Transaction Type": "Receive", "Date": transactionTime,
                                             "Amount Debited": value, "Debit Currency": "ETH", "Credit/Debit": "debit",
-                                            "Spot Rate": price, "Address": row["to"], "Taken from": "Etherscan"}, ignore_index=True,)
+                                            "Spot Rate": price, "Address": row["to"], "Taken From": "Etherscan"}, ignore_index=True,)
         else:
             dfShakepay = dfShakepay.append({"Transaction Type": "Send", "Date": transactionTime,
                                             "Amount Debited": value, "Debit Currency": "ETH", "Credit/Debit": "credit",
