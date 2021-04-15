@@ -3,6 +3,7 @@ from etherscan import Etherscan
 import pandas as pd
 import json
 from pycoingecko import CoinGeckoAPI
+from datetime import datetime
 cg = CoinGeckoAPI()
 
 def getEthTransactions():
@@ -19,9 +20,18 @@ def getEthTransactions():
     return df
 
 
-def getCoinGeckoDailyPrices(currency, date):
-    price = cg.get_coin_history_by_id(currency, date)
-    price = price["market_data"]["current_price"]["cad"]
+def getCoinGeckoPrices(currency, fiat):
+    data = cg.get_coin_market_chart_by_id("ethereum", "CAD", "max")
+    dailyPrices = {}
+    for time, price in data["prices"]:
+        time = time / 1000
+        dailyPrices[0] = datetime.utcfromtimestamp(time).strftime('%d-%m-%Y')
+        dailyPrices[1] = price
+    return dailyPrices
+
+
+def getCoinGeckoDailyPrices(date, dailyPrices):
+    price = dailyPrices[date]
     return price
 
 
@@ -30,19 +40,20 @@ def getEthTransactions_ShakepayFormat(walletAddress, currency, fiat):
     currency = "ethereum"
     fiat = "CAD"
     df = getEthTransactions()
-    df["timeStamp"] = pd.to_datetime(df["timeStamp"] , unit='s')
+    dailyPrices = getCoinGeckoPrices(currency, fiat)
+
     dfShakepay = pd.DataFrame(columns=
                               ["Transaction Type", "Date", "Amount Debited", "Debit Currency", "Amount Credited",
                                "Credit Currency", "Buy/Sell rate", "Credit/Debit", "Spot Rate", "Address",
-                               "Blockchain Transaction ID", "Taken from"])
+                               "Blockchain Transaction ID", "Taken From"])
     for index, row in df.iterrows():
         # take the day the transaction occurs and get the price of the ethereum in canadian dollars on that day
         transactionTime = row["timeStamp"]
-        dateOfTransaction = transactionTime.strftime('%d-%m-%Y')
-        price = getCoinGeckoDailyPrices(currency, dateOfTransaction)
+        dateOfTransaction = datetime.utcfromtimestamp(int(transactionTime)).strftime('%d-%m-%Y')
+        price = 0
+        price = getCoinGeckoPrices(dateOfTransaction, dailyPrices)
 
         #convert gwei to eth
-
         value = Decimal(row['value']) / Decimal('1000000000000000000')
         # if move eth out of wallet
         newRow = {}
@@ -53,7 +64,7 @@ def getEthTransactions_ShakepayFormat(walletAddress, currency, fiat):
         else:
             dfShakepay = dfShakepay.append({"Transaction Type": "Send", "Date": transactionTime,
                                             "Amount Debited": value, "Debit Currency": "ETH", "Credit/Debit": "credit",
-                                            "Spot Rate": price, "Taken from": "Etherscan"
+                                            "Spot Rate": price, "Taken From": "Etherscan"
                                             }, ignore_index=True, )
     return dfShakepay
 

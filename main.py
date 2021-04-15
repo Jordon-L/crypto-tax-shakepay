@@ -33,6 +33,7 @@ def setup():
     g.capitalGain = 0
     g.capitalLoss = 0
     g.bankTransferOutCAD = 0
+    g.send = []
 
 
 # process income gain and capital gain using csv from shakepay, then display
@@ -60,6 +61,7 @@ def processTax():
             table = parseCSV(absolute_path)
             walletAddresses = request.form['wallet-address']
             g.walletAddresses = walletAddresses
+            table = mergeEtherScan(table)
             calculateTax(table)
         return render_template("processTax.html", table=table.to_html(), incomeGain = g.incomeGain, capitalGain = g.capitalGain, capitalLoss = g.capitalLoss, totalBTC = g.totalBTC, totalETH = g.totalETH, totalCAD = g.totalCAD,
                                bankTransferOut = g.bankTransferOutCAD)
@@ -210,6 +212,8 @@ def cryptoCashout(row):
         elif gain >= 0:
             capitalGain += gain
             g.capitalGain = capitalGain
+    else:
+        g.send.append(row)
 
 
 # Calculate income gain from referral rewards
@@ -235,6 +239,18 @@ def fiatCashout(row):
     g.bankTransferOutCAD = bankTransfer
 
 
+def walletReceive(row):
+    # a transaction was sent to wallet
+    credit = row["Amount Credited"]
+    sendTransactions = g.send
+    if sendTransactions:
+        for sendRow in sendTransactions:
+            debit = row["Amount Debited"]
+            if credit == debit:
+                sendTransactions.remove(row)
+                print(sendTransactions)
+    g.send = sendTransactions
+
 TRANSACTION_PARSE = {
     "peer transfer": peerTransfer,
     "fiat funding": fiatFunding,
@@ -243,16 +259,22 @@ TRANSACTION_PARSE = {
     "referral reward": referralReward,
     "crypto funding": cryptoFunding,
     "fiat cashout": fiatCashout,
+    "Receive" : walletReceive,
 }
 
 
 def calculateTax(table):
     transactionType = table["Transaction Type"]
-    getEthTransactions_ShakepayFormat(g.walletAddresses, 'ethereum', 'CAD')
 
     for index, row in table.iterrows():
         TRANSACTION_PARSE.get(row["Transaction Type"], lambda x: print("Error"))(row)
 
+def mergeEtherScan(shakepayData):
+    if g.walletAddresses != "":
+        etherScanData = getEthTransactions_ShakepayFormat(g.walletAddresses, 'ethereum', 'CAD')
+        mergedData = pd.concat([shakepayData,etherScanData])
+        return mergedData
+    return shakepayData
 
 if __name__ == '__main__':
     app.run()
