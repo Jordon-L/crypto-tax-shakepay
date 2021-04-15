@@ -6,15 +6,14 @@ from pycoingecko import CoinGeckoAPI
 from datetime import datetime
 cg = CoinGeckoAPI()
 
-def getEthTransactions():
+
+def getEthTransactions(walletAddress):
     with open('api_key.json', mode='r') as key_file:
         key = json.loads(key_file.read())['key']
 
     eth = Etherscan(key)
 
-    address = '0xeD65e2473CcB85f50377e1Ea78FdaD8D47479119'
-
-    transactions = eth.get_normal_txs_by_address(address,0,999999999,"asc")
+    transactions = eth.get_normal_txs_by_address(walletAddress,0,999999999,"asc")
     df = pd.json_normalize(transactions)
     df.drop(df.columns[[0,2,3,4,11,12,13,14,15,16,17]], axis=1, inplace=True)
     return df
@@ -36,7 +35,7 @@ def getCoinGeckoDailyPrices(date, dailyPrices):
 
 
 def getEthTransactions_ShakepayFormat(walletAddress, currency, fiat):
-    df = getEthTransactions()
+    df = getEthTransactions(walletAddress)
     dailyPrices = getCoinGeckoPrices(currency, fiat)
     dfShakepay = pd.DataFrame(columns=
                               ["Transaction Type", "Date", "Amount Debited", "Debit Currency", "Amount Credited",
@@ -54,16 +53,13 @@ def getEthTransactions_ShakepayFormat(walletAddress, currency, fiat):
         # if move eth out of wallet
         newRow = {}
         if row["from"].lower() == walletAddress.lower():
-            dfShakepay = dfShakepay.append({"Transaction Type": "Receive", "Date": transactionTime,
-                                            "Amount Debited": value, "Debit Currency": "ETH", "Credit/Debit": "debit",
-                                            "Spot Rate": price, "Address": row["to"], "Taken From": "Etherscan"}, ignore_index=True,)
-        else:
             dfShakepay = dfShakepay.append({"Transaction Type": "Send", "Date": transactionTime,
-                                            "Amount Debited": value, "Debit Currency": "ETH", "Credit/Debit": "credit",
-                                            "Spot Rate": price, "Taken From": "Etherscan"
+                                            "Amount Debited": value, "Debit Currency": "ETH", "Credit/Debit": "debit",
+                                            "Spot Rate": price, "Address": row["to"], "Taken From": "Etherscan"
+                                            }, ignore_index=True,)
+        else:
+            dfShakepay = dfShakepay.append({"Transaction Type": "Receive", "Date": transactionTime,
+                                            "Amount Credited": value, "Credit Currency": "ETH",
+                                            "Credit/Debit": "credit", "Spot Rate": price, "Taken From": "Etherscan"
                                             }, ignore_index=True, )
-    return dfShakepay
-
-
-if __name__ == '__main__':
-    getEthTransactions_ShakepayFormat('0xeD65e2473CcB85f50377e1Ea78FdaD8D47479119', 'ethereum', 'CAD')
+    return dfShakepay.fillna("")

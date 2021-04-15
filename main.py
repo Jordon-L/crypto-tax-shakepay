@@ -1,10 +1,11 @@
 from flask import Flask, redirect, url_for, render_template, request, flash, g
+from IPython.display import HTML
 import os
 from werkzeug.utils import secure_filename
-import pandas as pd
 from EthScanTransactions import *
 
 pd.options.display.precision = 10
+pd.set_option('display.max_colwidth', None)
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 UPLOAD_FOLDER = '/tmp'
@@ -63,18 +64,27 @@ def processTax():
             g.walletAddresses = walletAddresses
             table = mergeEtherScan(table)
             calculateTax(table)
-        return render_template("processTax.html", table=table.to_html(), incomeGain = g.incomeGain, capitalGain = g.capitalGain, capitalLoss = g.capitalLoss, totalBTC = g.totalBTC, totalETH = g.totalETH, totalCAD = g.totalCAD,
-                               bankTransferOut = g.bankTransferOutCAD)
+            return render_template("processTax.html", table=HTML(table.to_html(escape = False)), incomeGain=g.incomeGain,
+                                   capitalGain=g.capitalGain, capitalLoss=g.capitalLoss, totalBTC=g.totalBTC,
+                                   totalETH=g.totalETH, totalCAD=g.totalCAD,
+                                   bankTransferOut=g.bankTransferOutCAD)
 
+
+@app.route('/interventions/<action>/<item_id>', methods=['GET', 'POST'])
+def deleteRow(action=None, item_id=None):
+    if request.method == "POST":
+        if action == 'delete':
+            deleteRow.query.get(item_id)
 
 def parseCSV(filePath):
-    df = pd.read_csv(filePath)
+    df = pd.read_csv(filePath, converters ={'Amount Credited':  decimal_from_value,
+                                            'Amount Debited':  decimal_from_value,
+                                            'Buy/Sell rate':  decimal_from_value,
+                                            'Spot Rate':  decimal_from_value})
     df["Date"] = df["Date"].str[:-3]
     df["Date"] = pd.to_datetime(df["Date"])
     df["Date"] = (df["Date"] - pd.Timestamp("1970-01-01")) // pd.Timedelta("1s")
     df["Taken From"] = "Shakepay"
-    ethDf = getEthTransactions()
-
     return df.fillna("")
 
 
@@ -240,16 +250,30 @@ def fiatCashout(row):
 
 
 def walletReceive(row):
-    # a transaction was sent to wallet
-    credit = row["Amount Credited"]
+    credit = Decimal(row["Amount Credited"])
+    averagePrice = g.avgETH
+    total = g.totalETH
     sendTransactions = g.send
+    #check transaction was by user
     if sendTransactions:
         for sendRow in sendTransactions:
-            debit = row["Amount Debited"]
-            if credit == debit:
-                sendTransactions.remove(row)
-                print(sendTransactions)
-    g.send = sendTransactions
+            debit = Decimal(sendRow["Amount Debited"])
+            if credit.compare(debit):
+                del sendTransactions[0]
+        g.send = sendTransactions
+    else:
+        price = Decimal(row["Spot Rate"])
+        income = int(price) * credit
+        averagePrice = averagePrice * total + income / credit + total
+        total = total + credit
+        g.totalETH = total
+        g.avgETH = averagePrice
+        g.incomeGain += income
+
+    #was not sent by user
+
+def walletSend(row):
+    print("send")
 
 TRANSACTION_PARSE = {
     "peer transfer": peerTransfer,
@@ -260,6 +284,7 @@ TRANSACTION_PARSE = {
     "crypto funding": cryptoFunding,
     "fiat cashout": fiatCashout,
     "Receive": walletReceive,
+    "Send": walletSend,
 }
 
 
@@ -269,12 +294,18 @@ def calculateTax(table):
     for index, row in table.iterrows():
         TRANSACTION_PARSE.get(row["Transaction Type"], lambda x: print("Error"))(row)
 
+
 def mergeEtherScan(shakepayData):
     if g.walletAddresses != "":
         etherScanData = getEthTransactions_ShakepayFormat(g.walletAddresses, 'ethereum', 'CAD')
-        mergedData = pd.concat([shakepayData,etherScanData])
-        return mergedData
+        mergedData = pd.concat([shakepayData, etherScanData])
+        shakepayData = mergedData
     return shakepayData
+
+def decimal_from_value(value):
+    if value != "":
+        return Decimal(value)
+    return ""
 
 if __name__ == '__main__':
     app.run()
