@@ -25,34 +25,30 @@ def getCoinGeckoPrices(currency, fiat):
     dailyPrices = {}
     for time, price in data["prices"]:
         time = time / 1000
-        dailyPrices[0] = datetime.utcfromtimestamp(time).strftime('%d-%m-%Y')
-        dailyPrices[1] = price
+        date = datetime.utcfromtimestamp(time).strftime('%d-%m-%Y')
+        dailyPrices[date] = price
     return dailyPrices
 
 
 def getCoinGeckoDailyPrices(date, dailyPrices):
-    price = dailyPrices[date]
+    price = dailyPrices.get(date, 0)
     return price
 
 
 def getEthTransactions_ShakepayFormat(walletAddress, currency, fiat):
-    walletAddress = '0xeD65e2473CcB85f50377e1Ea78FdaD8D47479119'
-    currency = "ethereum"
-    fiat = "CAD"
     df = getEthTransactions()
     dailyPrices = getCoinGeckoPrices(currency, fiat)
-
     dfShakepay = pd.DataFrame(columns=
                               ["Transaction Type", "Date", "Amount Debited", "Debit Currency", "Amount Credited",
                                "Credit Currency", "Buy/Sell rate", "Credit/Debit", "Spot Rate", "Address",
                                "Blockchain Transaction ID", "Taken From"])
     for index, row in df.iterrows():
         # take the day the transaction occurs and get the price of the ethereum in canadian dollars on that day
-        transactionTime = row["timeStamp"]
-        dateOfTransaction = datetime.utcfromtimestamp(int(transactionTime)).strftime('%d-%m-%Y')
+        transactionTime = int(row["timeStamp"])
+        dateOfTransaction = datetime.utcfromtimestamp(transactionTime).strftime('%d-%m-%Y')
+        print(dateOfTransaction)
         price = 0
-        price = getCoinGeckoPrices(dateOfTransaction, dailyPrices)
-
+        price = getCoinGeckoDailyPrices(dateOfTransaction, dailyPrices)
         #convert gwei to eth
         value = Decimal(row['value']) / Decimal('1000000000000000000')
         # if move eth out of wallet
