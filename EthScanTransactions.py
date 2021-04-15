@@ -1,7 +1,9 @@
+from decimal import Decimal
 from etherscan import Etherscan
 import pandas as pd
 import json
-
+from pycoingecko import CoinGeckoAPI
+cg = CoinGeckoAPI()
 
 def getEthTransactions():
     with open('api_key.json', mode='r') as key_file:
@@ -17,19 +19,44 @@ def getEthTransactions():
     return df
 
 
-def getEthTransactions_ShakepayFormat(walletAddress):
+def getCoinGeckoDailyPrices(currency, date):
+    price = cg.get_coin_history_by_id(currency, date)
+    price = price["market_data"]["current_price"]["cad"]
+    return price
+
+
+def getEthTransactions_ShakepayFormat(walletAddress, currency, fiat):
     walletAddress = '0xeD65e2473CcB85f50377e1Ea78FdaD8D47479119'
+    currency = "ethereum"
+    fiat = "CAD"
     df = getEthTransactions()
     df["timeStamp"] = pd.to_datetime(df["timeStamp"] , unit='s')
     dfShakepay = pd.DataFrame(columns=
-                              ["Transaction Type","Date","Amount Debited","Debit Currency","Amount Credited","Credit Currency","Buy/Sell rate","Credit/Debit","Spot Rate","Address","Blockchain Transaction ID"])
+                              ["Transaction Type", "Date", "Amount Debited", "Debit Currency", "Amount Credited",
+                               "Credit Currency", "Buy/Sell rate", "Credit/Debit", "Spot Rate", "Address",
+                               "Blockchain Transaction ID", "Taken from"])
     for index, row in df.iterrows():
-        # if move eth out of wallet
-        if row["from"] == walletAddress:
-            newRow = {"Transaction Type": "Send" ,"Date": row["timeStamp"], "Amount Debited": 0, "Debit Currency": "ETH"}
+        # take the day the transaction occurs and get the price of the ethereum in canadian dollars on that day
+        transactionTime = row["timeStamp"]
+        dateOfTransaction = transactionTime.strftime('%d-%m-%Y')
+        price = getCoinGeckoDailyPrices(currency, dateOfTransaction)
 
-    print(dfShakepay)
+        #convert gwei to eth
+
+        value = Decimal(row['value']) / Decimal('1000000000000000000')
+        # if move eth out of wallet
+        newRow = {}
+        if row["from"].lower() == walletAddress.lower():
+            dfShakepay = dfShakepay.append({"Transaction Type": "Receive", "Date": transactionTime,
+                                            "Amount Debited": value, "Debit Currency": "ETH", "Credit/Debit": "debit",
+                                            "Spot Rate": price, "Address": row["to"], "Taken from": "Etherscan"}, ignore_index=True,)
+        else:
+            dfShakepay = dfShakepay.append({"Transaction Type": "Send", "Date": transactionTime,
+                                            "Amount Debited": value, "Debit Currency": "ETH", "Credit/Debit": "credit",
+                                            "Spot Rate": price, "Taken from": "Etherscan"
+                                            }, ignore_index=True, )
+    return dfShakepay
 
 
 if __name__ == '__main__':
-    getEthTransactions_ShakepayFormat('0xeD65e2473CcB85f50377e1Ea78FdaD8D47479119')
+    getEthTransactions_ShakepayFormat('0xeD65e2473CcB85f50377e1Ea78FdaD8D47479119', 'ethereum', 'CAD')

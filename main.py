@@ -248,6 +248,8 @@ TRANSACTION_PARSE = {
 
 def calculateTax(table):
     transactionType = table["Transaction Type"]
+    getEthTransactions_ShakepayFormat(g.walletAddresses, 'ethereum', 'CAD')
+
     for index, row in table.iterrows():
         TRANSACTION_PARSE.get(row["Transaction Type"], lambda x: print("Error"))(row)
 
