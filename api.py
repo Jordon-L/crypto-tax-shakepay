@@ -1,27 +1,14 @@
-from flask import Flask, redirect, url_for, render_template, request, flash, g
-from IPython.display import HTML
+from flask import Flask, redirect, url_for, render_template, request, flash, g, jsonify
 import os
-from werkzeug.utils import secure_filename
+import decimal
 from EthScanTransactions import *
-
+import io
+from flask_cors import CORS
 pd.options.display.precision = 10
 pd.set_option('display.max_colwidth', None)
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
-UPLOAD_FOLDER = '/tmp'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-ALLOW_EXTENSIONS = {'csv'}
-
-
-def allowedFile(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOW_EXTENSIONS
-
-
-@app.route("/")
-def indexPage():
-    return render_template("index.html")
-
+CORS(app)
 
 def setup():
     g.totalCAD = 0
@@ -38,53 +25,28 @@ def setup():
 
 
 # process income gain and capital gain using csv from shakepay, then display
-@app.route('/', methods=['POST'])
+@app.route('/upload', methods=['POST'])
 def processTax():
     setup()
-    # get uploaded file
-    if request.method == 'POST':
-        if 'file' not in request.files:
-            flash('no file part')
-            return redirect(url_for('indexPage'))
-        file = request.files['file']
-        if file.filename == '':
-            flash("No selected file")
-            return redirect(url_for('indexPage'))
-        if not (allowedFile(file.filename)):
-            flash("only .csv files are allowed")
-            return redirect(url_for('indexPage'))
-        if file and allowedFile(file.filename):
-            filename = secure_filename(file.filename)
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            # remove absolute_path when deploying and change to file_path
-            absolute_path = os.path.abspath("tmp/" + filename)
-            file.save(absolute_path)
-            table = parseCSV(absolute_path)
-            walletAddresses = request.form['wallet-address']
-            g.walletAddresses = walletAddresses
-            table = mergeEtherScan(table)
-            calculateTax(table)
-            return render_template("processTax.html", table=HTML(table.to_html(escape = False)), incomeGain=g.incomeGain,
-                                   capitalGain=g.capitalGain, capitalLoss=g.capitalLoss, totalBTC=g.totalBTC,
-                                   totalETH=g.totalETH, totalCAD=g.totalCAD,
-                                   bankTransferOut=g.bankTransferOutCAD)
+    content = request.files['file']
+    g.walletAddresses = request.form['wallet']
+    df = pd.read_csv(content)
+    #table = mergeEtherScan(table)
+    df = formatDataFrame(df)
+    calculateTax(df)
+
+    return json.dumps(str(g.incomeGain))
 
 
-@app.route('/interventions/<action>/<item_id>', methods=['GET', 'POST'])
-def deleteRow(action=None, item_id=None):
-    if request.method == "POST":
-        if action == 'delete':
-            deleteRow.query.get(item_id)
-
-def parseCSV(filePath):
-    df = pd.read_csv(filePath, converters ={'Amount Credited':  decimal_from_value,
-                                            'Amount Debited':  decimal_from_value,
-                                            'Buy/Sell rate':  decimal_from_value,
-                                            'Spot Rate':  decimal_from_value})
+def formatDataFrame(df):
+    df = df.fillna("")
     df["Date"] = df["Date"].str[:-3]
     df["Date"] = pd.to_datetime(df["Date"])
     df["Date"] = (df["Date"] - pd.Timestamp("1970-01-01")) // pd.Timedelta("1s")
     df["Taken From"] = "Shakepay"
+    df[["Amount Credited", "Amount Debited", "Spot Rate","Buy/Sell rate"]] = df[
+        ["Amount Credited", "Amount Debited","Spot Rate","Buy/Sell rate"]].applymap(decimal_from_value)
+
     return df.fillna("")
 
 
@@ -302,10 +264,9 @@ def mergeEtherScan(shakepayData):
         shakepayData = mergedData
     return shakepayData
 
+
 def decimal_from_value(value):
     if value != "":
         return Decimal(value)
     return ""
 
-if __name__ == '__main__':
-    app.run()
