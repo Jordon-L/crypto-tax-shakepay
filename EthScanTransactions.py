@@ -45,7 +45,6 @@ def getEthTransactions_ShakepayFormat(walletAddress, currency, fiat):
         # take the day the transaction occurs and get the price of the ethereum in canadian dollars on that day
         transactionTime = int(row["timeStamp"])
         dateOfTransaction = datetime.utcfromtimestamp(transactionTime).strftime('%d-%m-%Y')
-        print(dateOfTransaction)
         price = 0
         price = getCoinGeckoDailyPrices(dateOfTransaction, dailyPrices)
         #convert gwei to eth

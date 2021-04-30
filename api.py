@@ -21,6 +21,8 @@ def setup():
     g.capitalGain = 0
     g.capitalLoss = 0
     g.bankTransferOutCAD = 0
+    g.CADSent = 0
+    g.CADReceived = 0
     g.send = []
 
 
@@ -31,11 +33,40 @@ def processTax():
     content = request.files['file']
     g.walletAddresses = request.form['wallet']
     df = pd.read_csv(content)
-    #table = mergeEtherScan(table)
     df = formatDataFrame(df)
+    if g.walletAddresses is None:
+        df = mergeEtherScan(df)
     calculateTax(df)
-
-    return json.dumps(str(g.incomeGain))
+    #format and send back to frontend
+    res = json.loads(df.to_json(orient='records'))
+    columns = [
+        {"title": 'Transaction Type', "field": 'Transaction Type'},
+        {"title": 'Date', "field": 'Date'},
+        {"title": 'Amount Debited', "field": 'Amount Debited'},
+        {"title": 'Debit Currency', "field": 'Debit Currency'},
+        {"title": 'Amount Credited', "field": 'Amount Credited'},
+        {"title": 'Credit Currency', "field": 'Credit Currency'},
+        {"title": 'Buy/Sell rate', "field": 'Buy/Sell rate'},
+        {"title": 'Credit/Debit', "field": 'Credit/Debit'},
+        {"title": 'Spot Rate', "field": 'Spot Rate'},
+        {"title": 'Address', "field": 'Address'},
+        {"title": 'Blockchain Transaction ID', "field": 'Blockchain Transaction ID'},
+        {"title": 'Taken From', "field": 'Taken From'},
+        ]
+    info = {
+        "incomeGain": str(g.incomeGain),
+        "capitalGain": str(g.capitalGain),
+        "capitalLoss": str(g.capitalLoss),
+        "totalBTC": str(g.totalBTC),
+        "totalETH": str(g.totalETH),
+        "CADSent": str(g.CADSent),
+        "CADReceived": str(g.CADReceived),
+        "totalCAD": str(g.totalCAD),
+        "avgBTC": str(g.avgBTC),
+        "avgETH": str(g.avgETH)
+    }
+    dataToBeSent = {"columns": columns, "table": res, "info" : info}
+    return json.dumps(dataToBeSent)
 
 
 def formatDataFrame(df):
@@ -97,7 +128,16 @@ def setAvgCost(currency, amount):
 # Calculate the income gain from receiving a currency and adjust the average cost
 def peerTransfer(row):
     incomeGain = g.incomeGain
-
+    # if canadian dollar is received or sent out in shakepay app
+    if row["Credit Currency"] == 'CAD':
+        g.CADReceived += row["Amount Credited"]
+        g.totalCAD += row["Amount Credited"]
+        return 0
+    elif row["Debit Currency"] == 'CAD' :
+        g.CADSent += row["Amount Debited"]
+        g.totalCAD -= row["Amount Debited"]
+        return 0
+    # crypto is sent out and receive in shakepay app
     if row["Credit/Debit"] == "credit":
         credit = row["Amount Credited"]
         creditCurrency = row["Credit Currency"]
@@ -107,7 +147,7 @@ def peerTransfer(row):
         else:
             incomeGain += credit * row["Spot Rate"]
             currentAvg = getAvgCost(creditCurrency)
-            newAvg = (currentAvg * totalCreditCurrency) + (row["Spot Rate"] * credit) / (
+            newAvg = (currentAvg * totalCreditCurrency + row["Spot Rate"] * credit) / (
                 totalCreditCurrency + credit)
             setAvgCost(creditCurrency, newAvg)
         setCurrencyTotals(creditCurrency, totalCreditCurrency + credit)
@@ -157,7 +197,8 @@ def purchaseSale(row):
         elif gain >= 0:
             capitalGain += gain
             g.capitalGain = capitalGain
-
+    if getCurrencyTotals(debitCurrency) == 0:
+        setAvgCost(debitCurrency, 0)
     g.capitalGain = capitalGain
 
 
@@ -186,6 +227,9 @@ def cryptoCashout(row):
             g.capitalGain = capitalGain
     else:
         g.send.append(row)
+
+    if getCurrencyTotals(debitCurrency) == 0:
+        setAvgCost(debitCurrency, 0)
 
 
 # Calculate income gain from referral rewards
@@ -235,7 +279,7 @@ def walletReceive(row):
     #was not sent by user
 
 def walletSend(row):
-    print("send")
+    return 0
 
 TRANSACTION_PARSE = {
     "peer transfer": peerTransfer,
@@ -251,8 +295,6 @@ TRANSACTION_PARSE = {
 
 
 def calculateTax(table):
-    transactionType = table["Transaction Type"]
-
     for index, row in table.iterrows():
         TRANSACTION_PARSE.get(row["Transaction Type"], lambda x: print("Error"))(row)
 
