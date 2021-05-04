@@ -56,7 +56,7 @@ function UserInput(){
                     search : false,
                     filtering : false,
                     sorting: false,
-                    draggable: false
+                    draggable: false,
                 }}
                 editable = {{
                     onRowDelete: oldData =>
@@ -81,6 +81,9 @@ function UserInput(){
                 <p>CAD sent: {taxInfo.CADSent} </p>
                 <p>CAD Received: {taxInfo.CADReceived} </p>
             </div>
+            <div id = "re-submit">
+                <button type="button" class="btn btn-success btn-block" onClick={() => Resubmit(wallet, columns, data, setColumns, setData, setTaxInfo)}>Resubmit</button>
+            </div>
         </div>
     }
     return (
@@ -92,11 +95,44 @@ function UserInput(){
         </div>
     )
 }
+
+function Resubmit(wallet, columns, data, setColumns, setData, setTaxInfo){
+    const payload = new FormData()
+    payload.append('wallet', wallet)
+    const columnsNames = []
+    for (const column in columns){
+        columnsNames.push(columns[column].field)
+    }
+    payload.append('columns', JSON.stringify(columnsNames))
+    const rows = []
+    for (const row in data){
+        const entry = {
+            'Transaction Type': data[row]['Transaction Type'],
+            'Date': data[row]['Date'],
+            'Amount Debited': data[row]['Amount Debited'],
+            'Debit Currency': data[row]['Debit Currency'],
+            'Amount Credited': data[row]['Amount Credited'],
+            'Credit Currency': data[row]['Credit Currency'],
+            'Buy/Sell rate': data[row]['Buy/Sell rate'],
+            'Credit/Debit': data[row]['Credit/Debit'],
+            'Spot Rate': data[row]['Spot Rate'],
+            'Address': data[row]['Address'],
+            'Blockchain Transaction ID': data[row]['Blockchain Transaction ID'],
+            'Taken From': data[row]['Taken From']
+        }
+        rows.push(entry)
+    }
+    payload.append('data', JSON.stringify(rows))
+    axios.post("http://localhost:5000/resubmit", payload, {
+        }).then(res => {
+            console.log("asd")
+        })
+}
 function Upload(selectedFile, wallet, setColumns, setData, setTaxInfo){
-    const data = new FormData()
-    data.append('file', selectedFile)
-    data.append('wallet', wallet)
-    axios.post("http://localhost:5000/upload", data, {
+    const payload = new FormData()
+    payload.append('file', selectedFile)
+    payload.append('wallet', wallet)
+    axios.post("http://localhost:5000/upload", payload, {
         }).then(res => {
                 CreateTable(res.data.table ,res.data.columns, setColumns, setData)
                 setTaxInfo({

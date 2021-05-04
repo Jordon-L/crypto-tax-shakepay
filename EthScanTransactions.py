@@ -40,7 +40,7 @@ def getEthTransactions_ShakepayFormat(walletAddress, currency, fiat):
     dfShakepay = pd.DataFrame(columns=
                               ["Transaction Type", "Date", "Amount Debited", "Debit Currency", "Amount Credited",
                                "Credit Currency", "Buy/Sell rate", "Credit/Debit", "Spot Rate", "Address",
-                               "Blockchain Transaction ID", "Taken From"])
+                               "Blockchain Transaction ID", "Taken From", "Event"])
     for index, row in df.iterrows():
         # take the day the transaction occurs and get the price of the ethereum in canadian dollars on that day
         transactionTime = int(row["timeStamp"])
@@ -54,11 +54,11 @@ def getEthTransactions_ShakepayFormat(walletAddress, currency, fiat):
         if row["from"].lower() == walletAddress.lower():
             dfShakepay = dfShakepay.append({"Transaction Type": "Send", "Date": transactionTime,
                                             "Amount Debited": value, "Debit Currency": "ETH", "Credit/Debit": "debit",
-                                            "Spot Rate": price, "Address": row["to"], "Taken From": "Etherscan"
+                                            "Spot Rate": price, "Address": row["to"], "Taken From": "Etherscan", "Event": "",
                                             }, ignore_index=True,)
         else:
             dfShakepay = dfShakepay.append({"Transaction Type": "Receive", "Date": transactionTime,
                                             "Amount Credited": value, "Credit Currency": "ETH",
-                                            "Credit/Debit": "credit", "Spot Rate": price, "Taken From": "Etherscan"
+                                            "Credit/Debit": "credit", "Spot Rate": price, "Taken From": "Etherscan", "Event": "",
                                             }, ignore_index=True, )
     return dfShakepay.fillna("")
