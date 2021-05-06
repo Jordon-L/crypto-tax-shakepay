@@ -1,39 +1,31 @@
-import React, {Component, forwardRef, useState } from 'react'
+import React, {Component, useState } from 'react'
 import './App.css'
 import axios from 'axios';
-import { ChevronLeft, ChevronRight, FirstPage, LastPage, DeleteOutline, Check, Clear } from "@material-ui/icons";
-import MaterialTable from "material-table";
-const Papa = require('papaparse')
+import { makeStyles } from '@material-ui/core/styles';
+import Table from '@material-ui/core/Table';
+import TableHead from '@material-ui/core/TableHead';
+import TableBody from '@material-ui/core/TableBody';
+import TableCell from '@material-ui/core/TableCell';
+import TableContainer from '@material-ui/core/TableContainer';
+import TablePagination from '@material-ui/core/TablePagination';
+import TableRow from '@material-ui/core/TableRow';
+import Paper from '@material-ui/core/Paper';
 
-const rows = {}
+const useStyles = makeStyles({
+    root : {
+        width: '100%',
+    },
+    container: {
+        maxHeight: 440,
+    },
+});
 
-const tableIcons = {
-    FirstPage: forwardRef((props, ref) => <FirstPage {...props} ref = {ref} />),
-    LastPage: forwardRef((props, ref) => <LastPage {...props} ref =  {ref} />),
-    NextPage: forwardRef((props, ref) => <ChevronRight {...props} ref = {ref} />),
-    PreviousPage: forwardRef((props, ref) => <ChevronLeft {...props} ref = {ref} />),
-    Delete: forwardRef((props, ref) => <DeleteOutline {...props} ref = {ref} />),
-    Clear: forwardRef((props,ref) => <Clear {...props} ref= {ref} />),
-    Check : forwardRef((props,ref) => <Check {...props} ref= {ref} />),
-}
 
 function CreateTable(rows ,columns, setColumns, setData){
     setColumns(columns);
     setData(rows)
 }
 
-function ReadCSV(file, setColumns, setData){
-    Papa.parse(file,{
-        header: true,
-        skipEmptyLines: true,
-        complete: function(results){
-            rows.data = results.data
-            rows.errors = results.errors
-            rows.meta = results.meta
-            CreateTable(rows,setColumns, setData)
-        }
-    })
-}
 function UserInput(){
     const [selectedFile, setSelectedFile] = useState(null)
     const [wallet, setWallet] = useState(null)
@@ -41,37 +33,67 @@ function UserInput(){
     const [data, setData] = useState([])
     const [taxInfo, setTaxInfo] = useState({})
     let table;
+    const classes = useStyles();
+    const [page, setPage] = useState(0);
+    const [rowPerPage, setRowsPerPage] = useState(10);
+
+    const handleChangePage = (event, newPage) => {
+        setPage(newPage);
+    };
+
+    const handleChangeRowsPerPage = (event) => {
+        setRowsPerPage(+event.target.value) // + in front mean return the numeric representation of object
+        setPage(0);
+    };
+
     if (columns.length === 0 && data.length === 0){
-        table = null;
+        table = null
     }
     else{
         table =
         <div>
-            <MaterialTable
-                icons = {tableIcons}
-                title = "table"
-                columns = {columns}
-                data = {data}
-                options = {{
-                    search : false,
-                    filtering : false,
-                    sorting: false,
-                    draggable: false,
-                }}
-                editable = {{
-                    onRowDelete: oldData =>
-                        new Promise((resolve, reject) => {
-                            setTimeout(() => {
-                                const dataDelete = [...data];
-                                const index = oldData.tableData.id;
-                                dataDelete.splice(index,1);
-                                setData([...dataDelete]);
-
-                                resolve()
-                            }, 1000)
-                        }),
-                }}
-            />
+            <div id ="table">
+                <Paper className = {classes.root}>
+                    <TableContainer className = {classes.container}>
+                        <Table stickyHeader aria-label = "transaction table">
+                            <TableHead>
+                                <TableRow>
+                                    {columns.map((column) => (
+                                        <TableCell key = {column.title}>
+                                            {column.field}
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {data.slice(page * rowPerPage, page * rowPerPage + rowPerPage).map((row) => {
+                                    return(
+                                        <TableRow>
+                                            {columns.map((column) => {
+                                                const value = row[column.title]
+                                                return (
+                                                    <TableCell key = {column.title}>
+                                                        {value}
+                                                    </TableCell>
+                                                );
+                                            })}
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                    <TablePagination
+                        rowsPerPageOptions = {[10,25,100]}
+                        component = "div"
+                        count = {data.length}
+                        rowsPerPage = {rowPerPage}
+                        page = {page}
+                        onChangePage = {handleChangePage}
+                        onChangeRowsPerPage = {handleChangeRowsPerPage}
+                    />
+                </Paper>
+            </div>
             <div id = "tax" >
                 <p>Income Gain: {taxInfo.incomeGain}</p>
                 <p>Capital Gain: {taxInfo.capitalGain}</p>
@@ -95,6 +117,7 @@ function UserInput(){
         </div>
     )
 }
+
 
 function Resubmit(wallet, columns, data, setColumns, setData, setTaxInfo){
     const payload = new FormData()

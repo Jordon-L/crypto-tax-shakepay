@@ -41,7 +41,7 @@ def processTax():
         df = mergeEtherScan(df)
         df = sortByDate(df)
     calculateTax(df)
-    print(df.head(5))
+    df["id"] = df.index + 1
     # format and send back to frontend
     res = json.loads(df.to_json(orient='records'))
     columns = [
