@@ -32,6 +32,7 @@ function UserInput(){
     const [columns, setColumns] = useState([])
     const [data, setData] = useState([])
     const [taxInfo, setTaxInfo] = useState({})
+    const [loading, setLoading] = useState(false)
     let table;
     const classes = useStyles();
     const [page, setPage] = useState(0);
@@ -51,7 +52,8 @@ function UserInput(){
         <div>
             <input type="file" name="file" onChange={event => setSelectedFile(event.target.files[0])} />
             <input type="text" name="wallet" onChange={event => setWallet(event.target.value)}/>
-            <button type="button" class="btn btn-success btn-block" onClick={() => Upload(selectedFile, wallet, setColumns, setData, setTaxInfo)}>Upload</button>
+            <button type="button" class="btn btn-success btn-block" onClick={() => Upload(selectedFile, wallet, setColumns, setData, setTaxInfo, setLoading)}>Upload</button>
+            {loading ? "Loading..." : ""}
         </div>
     }
     else{
@@ -117,7 +119,8 @@ function UserInput(){
     )
 }
 
-function Upload(selectedFile, wallet, setColumns, setData, setTaxInfo){
+function Upload(selectedFile, wallet, setColumns, setData, setTaxInfo,setLoading){
+    setLoading(true)
     const payload = new FormData()
     payload.append('file', selectedFile)
     payload.append('wallet', wallet)
