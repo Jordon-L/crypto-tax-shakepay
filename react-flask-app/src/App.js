@@ -47,7 +47,12 @@ function UserInput(){
     };
 
     if (columns.length === 0 && data.length === 0){
-        table = null
+        table =
+        <div>
+            <input type="file" name="file" onChange={event => setSelectedFile(event.target.files[0])} />
+            <input type="text" name="wallet" onChange={event => setWallet(event.target.value)}/>
+            <button type="button" class="btn btn-success btn-block" onClick={() => Upload(selectedFile, wallet, setColumns, setData, setTaxInfo)}>Upload</button>
+        </div>
     }
     else{
         table =
@@ -103,54 +108,15 @@ function UserInput(){
                 <p>CAD sent: {taxInfo.CADSent} </p>
                 <p>CAD Received: {taxInfo.CADReceived} </p>
             </div>
-            <div id = "re-submit">
-                <button type="button" class="btn btn-success btn-block" onClick={() => Resubmit(wallet, columns, data, setColumns, setData, setTaxInfo)}>Resubmit</button>
-            </div>
         </div>
     }
     return (
         <div>
-            <input type="file" name="file" onChange={event => setSelectedFile(event.target.files[0])} />
-            <input type="text" name="wallet" onChange={event => setWallet(event.target.value)}/>
-            <button type="button" class="btn btn-success btn-block" onClick={() => Upload(selectedFile, wallet, setColumns, setData, setTaxInfo)}>Upload</button>
             {table}
         </div>
     )
 }
 
-
-function Resubmit(wallet, columns, data, setColumns, setData, setTaxInfo){
-    const payload = new FormData()
-    payload.append('wallet', wallet)
-    const columnsNames = []
-    for (const column in columns){
-        columnsNames.push(columns[column].field)
-    }
-    payload.append('columns', JSON.stringify(columnsNames))
-    const rows = []
-    for (const row in data){
-        const entry = {
-            'Transaction Type': data[row]['Transaction Type'],
-            'Date': data[row]['Date'],
-            'Amount Debited': data[row]['Amount Debited'],
-            'Debit Currency': data[row]['Debit Currency'],
-            'Amount Credited': data[row]['Amount Credited'],
-            'Credit Currency': data[row]['Credit Currency'],
-            'Buy/Sell rate': data[row]['Buy/Sell rate'],
-            'Credit/Debit': data[row]['Credit/Debit'],
-            'Spot Rate': data[row]['Spot Rate'],
-            'Address': data[row]['Address'],
-            'Blockchain Transaction ID': data[row]['Blockchain Transaction ID'],
-            'Taken From': data[row]['Taken From']
-        }
-        rows.push(entry)
-    }
-    payload.append('data', JSON.stringify(rows))
-    axios.post("http://localhost:5000/resubmit", payload, {
-        }).then(res => {
-            console.log("asd")
-        })
-}
 function Upload(selectedFile, wallet, setColumns, setData, setTaxInfo){
     const payload = new FormData()
     payload.append('file', selectedFile)

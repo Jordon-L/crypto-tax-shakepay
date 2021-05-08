@@ -35,11 +35,15 @@ def processTax():
     g.walletAddresses = request.form['wallet']
     df = pd.read_csv(content)
     df = formatDataFrame(df)
+    addresses = g.walletAddresses.split(",")
+    g.walletAddresses = addresses
     ethAddress = re.compile("^0x[a-fA-F0-9]{40}$")
-    result = ethAddress.match(str(g.walletAddresses))
-    if result:
-        df = mergeEtherScan(df)
-        df = sortByDate(df)
+    for address in addresses:
+        result = ethAddress.match(address)
+        if result:
+            df = mergeEtherScan(df,address)
+            df = sortByDate(df)
+        time.sleep(1) # delay so etherscan api does not exceed limit
     calculateTax(df)
     df["id"] = df.index + 1
     # format and send back to frontend
@@ -73,17 +77,6 @@ def processTax():
     }
     dataToBeSent = {"columns": columns, "table": res, "info": info}
     return json.dumps(dataToBeSent)
-
-
-@app.route('/resubmit', methods=['POST'])
-def processResubmit():
-    g.walletAddresses = request.form['wallet']
-    columns = request.form['columns']
-    data = request.form['data']
-    df = pd.read_json(data)
-
-    print(df)
-    return "hello"
 
 def sortByDate(df):
     df.sort_values(by=['Date'], inplace=True, ignore_index=True)
@@ -244,7 +237,7 @@ def cryptoCashout(row):
     salePrice = row["Spot Rate"]
     costToObtain = 0
     credit = salePrice * debit
-    if address != g.walletAddresses:
+    if address not in g.walletAddresses:
         if avgDebitPrice != 0:
             costToObtain = avgDebitPrice * debit
         gain = credit - costToObtain
@@ -343,8 +336,8 @@ def calculateTax(table):
         event = TRANSACTION_PARSE.get(row["Transaction Type"], lambda x: print("Error"))(row)
         table.at[index, "Event"] = event
 
-def mergeEtherScan(shakepayData):
-    etherScanData = getEthTransactions_ShakepayFormat(g.walletAddresses, 'ethereum', 'CAD')
+def mergeEtherScan(shakepayData,address):
+    etherScanData = getEthTransactions_ShakepayFormat(address, 'ethereum', 'CAD')
     mergedData = pd.concat([shakepayData, etherScanData],ignore_index = True)
     shakepayData = mergedData
     return shakepayData
