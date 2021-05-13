@@ -1,14 +1,10 @@
 from flask import Flask, request, g
-import os
 import re
 import time
 from api.EthScanTransactions import *
 #from flask_cors import CORS
-from flask_restful import Api, Resource, reqparse
 pd.options.display.precision = 10
 pd.set_option('display.max_colwidth', None)
-app = Flask(__name__)
-app.secret_key = os.urandom(24)
 #CORS(app)
 
 def setup():
