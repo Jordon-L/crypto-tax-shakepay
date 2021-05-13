@@ -50,7 +50,6 @@ def getEthTransactions_ShakepayFormat(walletAddress, currency, fiat):
         #convert gwei to eth
         value = Decimal(row['value']) / Decimal('1000000000000000000')
         # if move eth out of wallet
-        newRow = {}
         if row["from"].lower() == walletAddress.lower():
             dfShakepay = dfShakepay.append({"Transaction Type": "Send", "Date": transactionTime,
                                             "Amount Debited": value, "Debit Currency": "ETH", "Credit/Debit": "debit",
