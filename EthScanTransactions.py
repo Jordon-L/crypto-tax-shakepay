@@ -1,17 +1,17 @@
+import os
 from decimal import Decimal
 from etherscan import Etherscan
 import pandas as pd
 import json
 from pycoingecko import CoinGeckoAPI
 from datetime import datetime
+from boto.s3.connection import S3Connection
 cg = CoinGeckoAPI()
 
+apiKey = S3Connection(os.environ['etherscanAPI'])
 
 def getEthTransactions(walletAddress):
-    with open('api_key.json', mode='r') as key_file:
-        key = json.loads(key_file.read())['key']
-
-    eth = Etherscan(key)
+    eth = Etherscan(apiKey)
 
     transactions = eth.get_normal_txs_by_address(walletAddress,0,999999999,"asc")
     df = pd.json_normalize(transactions)
