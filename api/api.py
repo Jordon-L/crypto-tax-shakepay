@@ -1,5 +1,5 @@
 from flask import Flask, request, g
-from __main__ import app
+from app import app
 import re
 import time
 from api.EthScanTransactions import *
