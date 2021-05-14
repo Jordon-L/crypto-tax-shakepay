@@ -4,7 +4,7 @@ import os
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
-app = Flask(__name__, static_url_path='', static_folder= os.path.join(basedir, 'react-flask-app/build'))
+app = Flask(__name__, static_url_path='', static_folder= '/react-flask-app/build')
 
 @app.route("/", defaults={'path':''})
 def serve(path):
