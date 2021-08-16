@@ -178,7 +178,7 @@ function UserInput(){
         </div>
     }
     return (
-        <Container maxWidth="md">
+        <Container maxWidth= "false" >
             {table}
         </Container>
     )
@@ -196,7 +196,7 @@ function Upload(selectedFile, wallet, shakepayWallet ,setColumns, setData, setTa
         payload.append('file', selectedFile)
         payload.append('wallet', wallet)
         payload.append('shakepayWallet', shakepayWallet)
-        axios.post("https://localhost:5000/upload", payload, {
+        axios.post("http://localhost:5000/upload", payload, {
             }).then(res => {
                     CreateTable(res.data.table ,res.data.columns, setColumns, setData)
                     setTaxInfo({
@@ -218,7 +218,7 @@ class App extends Component {
     render(){
 
         return (
-        <Container maxWidth="lg">
+        <Container maxWidth= "false" >
             <h1> Crypto Bro Tax</h1>
             <h3> Ethereum Tax calculator for Shakepay</h3>
             <UserInput/>

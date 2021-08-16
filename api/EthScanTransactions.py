@@ -6,7 +6,7 @@ from pycoingecko import CoinGeckoAPI
 from datetime import datetime
 cg = CoinGeckoAPI()
 
-apiKey = 1
+apiKey = "1"
 
 def getEthTransactions(walletAddress):
     eth = Etherscan(apiKey)

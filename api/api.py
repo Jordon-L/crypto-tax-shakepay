@@ -4,10 +4,10 @@ import json
 import re
 import time
 from api.EthScanTransactions import *
-#from flask_cors import CORS
+from flask_cors import CORS
 pd.options.display.precision = 10
 pd.set_option('display.max_colwidth', None)
-#CORS(app)
+CORS(app)
 
 def setup():
     g.totalCAD = 0
@@ -36,30 +36,30 @@ def processTax():
     addresses = g.walletAddresses.split(",")
     g.walletAddresses = addresses
     ethAddress = re.compile("^0x[a-fA-F0-9]{40}$")
+    # pull data from etherscan and merge data from shakepay
     for address in addresses:
         result = ethAddress.match(address)
         if result:
             df = mergeEtherScan(df,address)
             df = sortByDate(df)
-        time.sleep(1) # delay so etherscan api does not exceed limit
+        time.sleep(1)  # delay so etherscan api does not exceed limit
     calculateTax(df)
-    df["id"] = df.index + 1
+    df['id'] = df.index + 1
+    # convert back to readable dates
+    df['Date'] = pd.to_datetime(df['Date'], unit='s')
     # format and send back to frontend
     res = json.loads(df.to_json(orient='records'))
     columns = [
         {"title": 'Transaction Type', "field": 'Transaction Type'},
         {"title": 'Date', "field": 'Date'},
         {"title": 'Amount Debited', "field": 'Amount Debited'},
-        {"title": 'Debit Currency', "field": 'Debit Currency'},
         {"title": 'Amount Credited', "field": 'Amount Credited'},
-        {"title": 'Credit Currency', "field": 'Credit Currency'},
         {"title": 'Buy/Sell rate', "field": 'Buy/Sell rate'},
         {"title": 'Credit/Debit', "field": 'Credit/Debit'},
         {"title": 'Spot Rate', "field": 'Spot Rate'},
-        {"title": 'Address', "field": 'Address'},
-        {"title": 'Blockchain Transaction ID', "field": 'Blockchain Transaction ID'},
         {"title": 'Taken From', "field": 'Taken From'},
-        {"title": 'Event', "field": 'Event'}
+        {"title": 'Event', "field": 'Event'},
+        {"title": 'Address', "field": 'Address'}
         ]
     info = {
         "incomeGain": str(g.incomeGain),
@@ -282,7 +282,7 @@ def fiatCashout(row):
         bankTransfer += debit
     g.bankTransferOutCAD = bankTransfer
     return event
-
+# for etherscan data
 def walletReceive(row):
     event = ""
     credit = Decimal(row["Amount Credited"])
@@ -310,7 +310,7 @@ def walletReceive(row):
     return event
 
 
-
+# for etherscan data
 def walletSend(row):
     event = "Internal transfer"
     return event
@@ -333,6 +333,12 @@ def calculateTax(table):
     for index, row in table.iterrows():
         event = TRANSACTION_PARSE.get(row["Transaction Type"], lambda x: print("Error"))(row)
         table.at[index, "Event"] = event
+        if(isinstance(row["Amount Credited"], str) == False):
+            table.at[index, "Amount Credited"] = "+" + str(round(row["Amount Credited"],4)) + " " + str(row["Credit Currency"])
+        if (isinstance(row["Amount Debited"], str) == False):
+            if(isinstance(row["Event"], str) != "Internal Transfer"):
+                table.at[index, "Amount Debited"] = "-" + str(round(row["Amount Debited"], 4)) + " " + str(row["Debit Currency"])
+    table.drop(columns=["Credit Currency", "Debit Currency", "Blockchain Transaction ID" ], axis = 1, inplace=True)
 
 def mergeEtherScan(shakepayData,address):
     etherScanData = getEthTransactions_ShakepayFormat(address, 'ethereum', 'CAD')
