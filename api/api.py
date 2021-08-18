@@ -4,10 +4,10 @@ import json
 import re
 import time
 from api.EthScanTransactions import *
-from flask_cors import CORS
+#from flask_cors import CORS
 pd.options.display.precision = 10
 pd.set_option('display.max_colwidth', None)
-CORS(app)
+#CORS(app)
 
 def setup():
     g.totalCAD = 0
