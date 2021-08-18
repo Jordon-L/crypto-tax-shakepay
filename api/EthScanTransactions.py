@@ -37,7 +37,7 @@ def getEthTransactions_ShakepayFormat(walletAddress, currency, fiat):
     dailyPrices = getCoinGeckoPrices(currency, fiat)
     dfShakepay = pd.DataFrame(columns=
                               ["Transaction Type", "Date", "Amount Debited", "Debit Currency", "Amount Credited",
-                               "Credit Currency", "Buy/Sell rate", "Credit/Debit", "Spot Rate", "Address",
+                               "Credit Currency", "Buy / Sell Rate", "Direction", "Spot Rate", "Source / Destination",
                                "Blockchain Transaction ID", "Taken From", "Event"])
     for index, row in df.iterrows():
         # take the day the transaction occurs and get the price of the ethereum in canadian dollars on that day
@@ -50,12 +50,12 @@ def getEthTransactions_ShakepayFormat(walletAddress, currency, fiat):
         # if move eth out of wallet
         if row["from"].lower() == walletAddress.lower():
             dfShakepay = dfShakepay.append({"Transaction Type": "Send", "Date": transactionTime,
-                                            "Amount Debited": value, "Debit Currency": "ETH", "Credit/Debit": "debit",
-                                            "Spot Rate": price, "Address": row["to"], "Taken From": "Etherscan", "Event": "",
+                                            "Amount Debited": value, "Debit Currency": "ETH", "Direction": "debit",
+                                            "Spot Rate": price, "Source / Destination": row["to"], "Taken From": "Etherscan", "Event": "",
                                             }, ignore_index=True,)
         else:
             dfShakepay = dfShakepay.append({"Transaction Type": "Receive", "Date": transactionTime,
                                             "Amount Credited": value, "Credit Currency": "ETH",
-                                            "Credit/Debit": "credit", "Spot Rate": price, "Taken From": "Etherscan", "Event": "",
+                                            "Direction": "credit", "Spot Rate": price, "Source / Destination": row["to"], "Taken From": "Etherscan", "Event": "",
                                             }, ignore_index=True, )
     return dfShakepay.fillna("")
