@@ -4,10 +4,9 @@ from etherscan import Etherscan
 import pandas as pd
 from pycoingecko import CoinGeckoAPI
 from datetime import datetime
-from boto.s3.connection import S3Connection
 cg = CoinGeckoAPI()
 
-apiKey = S3Connection(os.environ['etherscanAPI'])
+apiKey = os.environ['etherscanAPI']
 
 def getEthTransactions(walletAddress):
     eth = Etherscan(apiKey)

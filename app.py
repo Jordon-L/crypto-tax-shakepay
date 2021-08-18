@@ -3,7 +3,7 @@ from flask import Flask, send_from_directory
 import os
 
 
-app = Flask(__name__, static_url_path='', static_folder= 'react-flask-app/build')
+app = Flask(__name__, static_url_path='', static_folder= './react-flask-app/build')
 
 @app.route("/", defaults={'path':''})
 def serve(path):

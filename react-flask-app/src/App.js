@@ -196,7 +196,7 @@ function Upload(selectedFile, wallet, shakepayWallet ,setColumns, setData, setTa
         payload.append('file', selectedFile)
         payload.append('wallet', wallet)
         payload.append('shakepayWallet', shakepayWallet)
-        axios.post("http://localhost:5000/upload", payload, {
+        axios.post("/upload", payload, {
             }).then(res => {
                     CreateTable(res.data.table ,res.data.columns, setColumns, setData)
                     setTaxInfo({
