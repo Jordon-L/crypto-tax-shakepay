@@ -43,10 +43,12 @@ def processTax():
             df = mergeEtherScan(df,address)
             df = sortByDate(df)
         time.sleep(1)  # delay so etherscan api does not exceed limit
-    calculateTax(df)
+    df = calculateTax(df)
     df['id'] = df.index + 1
     # convert back to readable dates
     df['Date'] = pd.to_datetime(df['Date'], unit='s')
+    df['Date'] = df['Date'].dt.strftime('%Y-%m-%d %H:%M:%S')
+
     # format and send back to frontend
     res = json.loads(df.to_json(orient='records'))
     columns = [
@@ -54,12 +56,12 @@ def processTax():
         {"title": 'Date', "field": 'Date'},
         {"title": 'Amount Debited', "field": 'Amount Debited'},
         {"title": 'Amount Credited', "field": 'Amount Credited'},
-        {"title": 'Buy/Sell rate', "field": 'Buy/Sell rate'},
-        {"title": 'Credit/Debit', "field": 'Credit/Debit'},
+        {"title": 'Buy / Sell Rate', "field": 'Buy / Sell Rate'},
+        {"title": 'Direction', "field": 'Direction'},
         {"title": 'Spot Rate', "field": 'Spot Rate'},
         {"title": 'Taken From', "field": 'Taken From'},
         {"title": 'Event', "field": 'Event'},
-        {"title": 'Address', "field": 'Address'}
+        {"title": 'Source / Destination', "field": 'Source / Destination'}
         ]
     info = {
         "incomeGain": str(g.incomeGain),
@@ -73,6 +75,8 @@ def processTax():
         "avgBTC": str(g.avgBTC),
         "avgETH": str(g.avgETH)
     }
+
+
     dataToBeSent = {"columns": columns, "table": res, "info": info}
     return json.dumps(dataToBeSent)
 
@@ -87,8 +91,8 @@ def formatDataFrame(df):
     df["Date"] = (df["Date"] - pd.Timestamp("1970-01-01")) // pd.Timedelta("1s")
     df["Taken From"] = "Shakepay"
     df["Event"] = ""
-    df[["Amount Credited", "Amount Debited", "Spot Rate", "Buy/Sell rate"]] = df[
-        ["Amount Credited", "Amount Debited", "Spot Rate", "Buy/Sell rate"]].applymap(decimal_from_value)
+    df[["Amount Credited", "Amount Debited", "Spot Rate", "Buy / Sell Rate"]] = df[
+        ["Amount Credited", "Amount Debited", "Spot Rate", "Buy / Sell Rate"]].applymap(decimal_from_value)
 
     return df.fillna("")
 
@@ -153,7 +157,7 @@ def peerTransfer(row):
         g.totalCAD -= row["Amount Debited"]
         return event
     # crypto is sent out and receive in shakepay app
-    if row["Credit/Debit"] == "credit":
+    if row["Direction"] == "credit":
         event = "Income gain"
         credit = row["Amount Credited"]
         creditCurrency = row["Credit Currency"]
@@ -174,7 +178,7 @@ def peerTransfer(row):
 # increase amount of fiat the user's possession
 def fiatFunding(row):
     event = "Internal transfer"
-    if row["Credit/Debit"] == "credit":
+    if row["Direction"] == "credit":
         credit = row["Amount Credited"]
         currency = row["Credit Currency"]
         if currency == "CAD":
@@ -191,7 +195,7 @@ def purchaseSale(row):
     credit = row["Amount Credited"]
     creditCurrency = row["Credit Currency"]
     totalCreditCurrency = getCurrencyTotals(creditCurrency)
-    buyPrice = row["Buy/Sell rate"]
+    buyPrice = row["Buy / Sell Rate"]
     currentAvg = getAvgCost(creditCurrency)
     newAvg = (currentAvg * totalCreditCurrency) + (buyPrice * credit) / (totalCreditCurrency + credit)
     setAvgCost(creditCurrency, newAvg)
@@ -206,7 +210,7 @@ def purchaseSale(row):
     if creditCurrency == "CAD":
         costToObtain = 0
         if avgDebitPrice != 0:
-            costToObtain = (1 - avgDebitPrice) / avgDebitPrice * credit + credit
+            costToObtain = avgDebitPrice * debit
         gain = credit - costToObtain
         if gain < 0:
             event = "Capital loss"
@@ -224,7 +228,7 @@ def purchaseSale(row):
 # Calculate capital gain or loss when transferring crypto outside of shakepay
 def cryptoCashout(row):
     event = ""
-    address = row["Address"]
+    address = row["Source / Destination"]
     capitalGain = g.capitalGain
     capitalLoss = g.capitalLoss
     debit = row["Amount Debited"]
@@ -297,6 +301,8 @@ def walletReceive(row):
             if credit.compare(debit):
                 del sendTransactions[0]
         g.send = sendTransactions
+        total = total + credit
+        g.totalETH = total
     # was not sent by user
     else:
         event = "Income gain"
@@ -313,6 +319,11 @@ def walletReceive(row):
 # for etherscan data
 def walletSend(row):
     event = "Internal transfer"
+    debit = Decimal(row["Amount Debited"])
+    averagePrice = g.avgETH
+    total = g.totalETH
+    total = total - debit
+    g.totalETH = total
     return event
 
 
@@ -326,6 +337,8 @@ TRANSACTION_PARSE = {
     "fiat cashout": fiatCashout,
     "Receive": walletReceive,
     "Send": walletSend,
+    "shakingsats": peerTransfer,
+    "other":referralReward
 }
 
 
@@ -339,6 +352,7 @@ def calculateTax(table):
             if(isinstance(row["Event"], str) != "Internal Transfer"):
                 table.at[index, "Amount Debited"] = "-" + str(round(row["Amount Debited"], 4)) + " " + str(row["Debit Currency"])
     table.drop(columns=["Credit Currency", "Debit Currency", "Blockchain Transaction ID" ], axis = 1, inplace=True)
+    return table
 
 def mergeEtherScan(shakepayData,address):
     etherScanData = getEthTransactions_ShakepayFormat(address, 'ethereum', 'CAD')
