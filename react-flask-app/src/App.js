@@ -52,7 +52,10 @@ function UserInput(){
     const [wallet, setWallet] = useState(null)
     const [columns, setColumns] = useState([])
     const [data, setData] = useState([])
+    const [taxData, setTaxData] = useState([])
+    const [taxColumns, setTaxColumns] = useState([])
     const [taxInfo, setTaxInfo] = useState({})
+
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(false)
     let table;
@@ -97,7 +100,8 @@ function UserInput(){
                     <div id = "selectedFile">Selected File: </div>
                 </Grid>
                 <Grid item xs={6}>
-                    <Button className = {classes.button} variant="contained" color= "primary" onClick={() => Upload(selectedFile, wallet, shakepayWallet,setColumns, setData, setTaxInfo, setLoading, setShakepayWallet, setError)}>Upload </Button>
+                    <Button className = {classes.button} variant="contained" color= "primary" onClick={() =>
+                    Upload(selectedFile, wallet, shakepayWallet,setColumns, setData, setTaxInfo, setLoading, setShakepayWallet, setError, setTaxData, setTaxColumns)}>Upload </Button>
                 </Grid>
                 <Grid item xs={6}>
                     <h4> Optional </h4>
@@ -142,7 +146,7 @@ function UserInput(){
                                     return(
                                         <TableRow>
                                             {columns.map((column) => {
-                                                const value = row[column.title]
+                                                const value = row[column.field]
                                                 return (
                                                     <TableCell key = {column.title}>
                                                         {value}
@@ -166,7 +170,50 @@ function UserInput(){
                     />
                 </Paper>
             </div>
+            <div id = "info">
+                <p>Cryptocurrency gained from mining and shakesats are subjected to income tax.
+                    You are taxed based on the price of the cryptocurrency at the time you receive the cryptocurrency.
+                    This price will also be used to calculate capital gains tax.</p>
+                <p>Include this income on your income tax form.</p>
+                <p>Income Gain: {taxInfo.incomeGain}</p>
+                <p>Cryptocurrencies are treated as publicly traded shares and requires reporting capital gains when selling. Download a
+                <a href="https://www.canada.ca/en/revenue-agency/services/forms-publications/tax-packages-years/general-income-tax-benefit-package/5000-s3.html">
+                 Schedule 3</a> tax form and complete it using information from table below.</p>
+            </div>
             <div id = "tax" >
+                <div id ="taxTable">
+                    <Paper className = {classes.root}>
+                        <TableContainer className = {classes.container}>
+                            <Table stickyHeader aria-label = "tax table">
+                                <TableHead>
+                                    <TableRow>
+                                        {taxColumns.map((column) => (
+                                            <TableCell key = {column.title}>
+                                                {column.field}
+                                            </TableCell>
+                                        ))}
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {taxData.map((row) => {
+                                        return(
+                                            <TableRow>
+                                                {taxColumns.map((column) => {
+                                                    const value = row[column.field]
+                                                    return (
+                                                        <TableCell key = {column.title}>
+                                                            {value}
+                                                        </TableCell>
+                                                    );
+                                                })}
+                                            </TableRow>
+                                        );
+                                    })}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                    </Paper>
+                </div>
                 <p>Income Gain: {taxInfo.incomeGain}</p>
                 <p>Capital Gain: {taxInfo.capitalGain}</p>
                 <p>Capital Loss: {taxInfo.capitalLoss}</p>
@@ -184,7 +231,7 @@ function UserInput(){
     )
 }
 
-function Upload(selectedFile, wallet, shakepayWallet ,setColumns, setData, setTaxInfo,setLoading, setShakepayWallet, setError){
+function Upload(selectedFile, wallet, shakepayWallet ,setColumns, setData, setTaxInfo,setLoading, setShakepayWallet, setError, setTaxData, setTaxColumns){
     if(selectedFile == null){
         setError(true)
         setLoading(false)
@@ -199,6 +246,7 @@ function Upload(selectedFile, wallet, shakepayWallet ,setColumns, setData, setTa
         axios.post("/upload", payload, {
             }).then(res => {
                     CreateTable(res.data.table ,res.data.columns, setColumns, setData)
+                    CreateTable(res.data.taxTable, res.data.taxColumns, setTaxColumns, setTaxData)
                     setTaxInfo({
                         incomeGain: res.data.info.incomeGain,
                         capitalLoss: res.data.info.capitalLoss,
