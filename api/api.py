@@ -61,6 +61,9 @@ def processTax():
     # format and send back to frontend
     res = json.loads(df.to_json(orient='records'))
     tax = json.loads(dfTax.to_json(orient='records'))
+
+    totalNumberETH, totalSalePriceETH, totalCostETH, totalFeesETH, totalGainsETH = calculateCapitalGain(dfTax,"Ethereum")
+    totalNumberBTC, totalSalePriceBTC, totalCostBTC, totalFeesBTC, totalGainsBTC = calculateCapitalGain(dfTax,"Bitcoin")
     columns = [
         {"title": 'Transaction Type', "field": 'Transaction Type'},
         {"title": 'Date', "field": 'Date'},
@@ -73,30 +76,24 @@ def processTax():
         {"title": 'Event', "field": 'Event'},
         {"title": 'Source / Destination', "field": 'Source / Destination'}
         ]
-    taxColumns = [
-        {"title": 'Number', "field": 'Number'},
-        {"title": 'Name',  "field": 'Name of fund/corp. and class of shares'},
-        {"title": 'Year of acquisition', "field": '(1) Year of acquisition'},
-        {"title": 'Proceeds of disposition', "field": '(2) Proceeds of disposition'},
-        {"title": 'Adjusted cost base', "field": '(3) Adjusted cost base'},
-        {"title": 'Outlays and expenses', "field": '(4) Outlays and expenses (from dispositions)'},
-        {"title": 'Gain', "field": '(5) Gain (or loss) (column 2 minus columns 3 and 4)'}
-    ]
     info = {
-        "incomeGain": str(g.incomeGain),
-        "capitalGain": str(g.capitalGain),
-        "capitalLoss": str(g.capitalLoss),
-        "totalBTC": str(g.totalBTC),
-        "totalETH": str(g.totalETH),
-        "CADSent": str(g.CADSent),
-        "CADReceived": str(g.CADReceived),
-        "totalCAD": str(g.totalCAD),
-        "avgBTC": str(g.avgBTC),
-        "avgETH": str(g.avgETH)
+        "incomeGain": str(round(g.incomeGain,4)),
+        "capitalGain": str(totalGainsETH+totalGainsBTC),
+        "totalNumberETH": str(totalNumberETH),
+        "totalSalePriceETH": str(totalSalePriceETH),
+        "totalCostETH": str(totalCostETH),
+        "totalFeesETH": str(totalFeesETH),
+        "totalGainsETH": str(totalGainsETH),
+
+        "totalNumberBTC": str(totalNumberBTC),
+        "totalSalePriceBTC": str(totalSalePriceBTC),
+        "totalCostBTC": str(totalCostBTC),
+        "totalFeesBTC": str(totalFeesBTC),
+        "totalGainsBTC": str(totalGainsBTC)
     }
+    infoJson = json.dumps(info)
 
-
-    dataToBeSent = {"columns": columns, "table": res, "info": info, "taxTable": tax, "taxColumns": taxColumns }
+    dataToBeSent = {"columns": columns, "table": res, "info": infoJson}
     return json.dumps(dataToBeSent)
 
 def sortByDate(df):
@@ -318,10 +315,11 @@ def walletReceive(row):
     sendTransactions = g.send
     # check transaction was by user
     if sendTransactions:
-        event = "Internal transfer"
+        event = "Error"
         for sendRow in sendTransactions:
             debit = Decimal(sendRow["Amount Debited"])
             if credit.compare(debit):
+                event = "Internal transfer"
                 del sendTransactions[0]
         g.send = sendTransactions
         total = total + credit
@@ -376,7 +374,7 @@ def calculateTax(table, tableTax):
             debitCurrency = row["Debit Currency"]
             number = round(row["Amount Debited"], 4)
             name = "Error"
-            year = "2020"
+            year = "placeholder"
             # credit being empty means user transferred crypto to an account that is not theirs
             if row["Amount Credited"] == "":
                 sold = round(row["Spot Rate"] * row["Amount Debited"], 4)
@@ -390,16 +388,16 @@ def calculateTax(table, tableTax):
                 name = "Ethereum"
                 accumulatedFees = g.feesInCAD
                 fees = accumulatedFees * (row["Amount Debited"]/(row["Amount Debited"] + g.totalETH))
-                fees = round(fees, 4)
                 g.feesInCAD = accumulatedFees - fees
+                fees = round(fees, 4)
             elif row["Debit Currency"] == "BTC":
                 name = "Bitcoin"
-            tableTax = tableTax.append({'Number': number, 'Name of fund/corp. and class of shares' : name,
-                                        '(1) Year of acquisition': year,
-                                        '(2) Proceeds of disposition': sold,
-                                        '(3) Adjusted cost base': price,
-                                        '(4) Outlays and expenses (from dispositions)': fees,
-                                        '(5) Gain (or loss) (column 2 minus columns 3 and 4)': sold-price-fees}, ignore_index=True)
+            tableTax = tableTax.append({'Number': number, 'Name': name,
+                                        'Year of acquisition': year,
+                                        'Sold For': sold,
+                                        'Cost': price,
+                                        'Fees': fees,
+                                        'Gain': sold-price-fees}, ignore_index=True)
         # reformatting of data table
         if not isinstance(row["Amount Credited"], str):
             table.at[index, "Amount Credited"] = "+" + str(round(row["Amount Credited"], 4)) + " " + str(row["Credit Currency"])
@@ -415,7 +413,31 @@ def calculateTax(table, tableTax):
                    inplace=True)
     pd.options.display.max_columns = None
     pd.options.display.max_rows = None
+
+    # remove fiat transfers
+    table = table[table.Event != 'Transfer Fiat']
+    table = table[table["Transaction Type"] != 'shakingsats']
     return table, tableTax
+
+def calculateCapitalGain(tableTax, currencyName):
+    tax = tableTax[tableTax["Name"] == currencyName]
+
+    totalNumber = 0
+    totalCost = 0
+    totalSalePrice = 0
+    totalFees = 0
+    totalGains = 0
+    for index, row in tax.iterrows():
+        totalCost +=  row["Cost"]
+        totalNumber += row["Number"]
+        totalSalePrice +=  row["Sold For"]
+        totalFees += row["Fees"]
+        totalGains += row["Gain"]
+
+    print(totalNumber,totalSalePrice, totalCost, totalFees, totalGains)
+    return totalNumber, totalSalePrice, totalCost, totalFees, totalGains
+
+
 
 def mergeEtherScan(shakepayData,address):
     etherScanData = getEthTransactions_ShakepayFormat(address, 'ethereum', 'CAD')

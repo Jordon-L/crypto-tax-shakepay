@@ -39,19 +39,21 @@
   }
 }
 
+
+
 h1{
   padding-top: 50px;
   text-align:center;
 }
 
-h3{
+h4{
   text-align:center;
 }
-
 body {
-   background: #F7F7F7;
+    background-color: #ECECEC;
 }
 
-p span {
-  display: block;
+#disclaimer{
+    margin-right: 25%;
+    margin-left: 25%
 }
