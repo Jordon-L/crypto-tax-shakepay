@@ -28,6 +28,11 @@ import DialogContentText from '@material-ui/core/DialogContentText';
 import DialogTitle from '@material-ui/core/DialogTitle';
 import useMediaQuery from '@material-ui/core/useMediaQuery';
 import { useTheme } from '@material-ui/core/styles';
+import { CSVLink } from "react-csv";
+import Accordion from '@material-ui/core/Accordion';
+import AccordionSummary from '@material-ui/core/AccordionSummary';
+import AccordionDetails from '@material-ui/core/AccordionDetails';
+import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
 
 const useStyles = makeStyles((theme) => ({
     root : {
@@ -70,6 +75,12 @@ const useStyles = makeStyles((theme) => ({
     table : {
         width: '1500px'
     },
+    disabledAccordion: {
+        backgroundColor : '#fff !important',
+    },
+    disabledAccordionSummary: {
+        opacity : '1 !important'
+    },
 }));
 
 
@@ -82,7 +93,7 @@ function displayFileName(name){
     displayLocation.innerHTML = "Selected File: " + name;
 }
 function TableDialog(props){
-    const { openTable, onClose, data, columns } = props;
+        const { openTable, onCloseTable, data, columns } = props;
     const classes = useStyles();
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -90,14 +101,13 @@ function TableDialog(props){
     const handleChangePage = (event, newPage) => {
         setPage(newPage);
     };
-
     const handleChangeRowsPerPage = (event) => {
         setRowsPerPage(+event.target.value); // + in front mean return the numeric representation of object
         setPage(0);
     };
     return (
         <Dialog
-            onClose={onClose}
+            onClose={onCloseTable}
             maxWidth = '1500px'
             open={openTable}
         >
@@ -106,6 +116,20 @@ function TableDialog(props){
                 <DialogContentText>
                     Shakingsats is not displayed, but is calculated as Income
                 </DialogContentText>
+
+               <CSVLink
+                      data={data}
+                      filename={"transactionTable.csv"}
+                    >
+                <Button className = {classes.button}
+                variant = "contained"
+                component = "label"
+                >
+                    Download
+                </Button>
+                </CSVLink>
+
+
                 <TableContainer className = {classes.table}>
                     <Table stickyHeader aria-label = "transaction table">
                         <TableHead>
@@ -160,6 +184,25 @@ function TableDialog(props){
     )
 
 }
+function MoreDetailDialog(props){
+    const { openDetail, onCloseDetail, taxInfo} = props;
+
+    return (
+        <Dialog
+            onClose={onCloseDetail}
+            maxWidth = '1500px'
+            open={openDetail}
+        >
+            <DialogTitle>Breakdown of Capital Gain</DialogTitle>
+            <DialogContent>
+                <DialogContentText>
+                    {taxInfo.capitalGain}
+                </DialogContentText>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 function UserInput(){
     const [selectedFile, setSelectedFile] = useState(null);
     const [shakepayWallet, setShakepayWallet] = useState(null);
@@ -175,8 +218,10 @@ function UserInput(){
     const [displayIncome, setDisplayIncome] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(false);
+    const [errorFile, setErrorFile] = useState(false);
     const [openTable, setOpenTable] = React.useState(false);
-
+    const [openDetail, setOpenDetail] = React.useState(false);
+    const [errorEth, setErrorEth] = React.useState(false);
     let table;
 
     const classes = useStyles();
@@ -196,10 +241,16 @@ function UserInput(){
         setOpenTable(true);
     };
 
-    const handleClose = () => {
+    const handleCloseTable = () => {
         setOpenTable(false);
     };
 
+    const handleClickOpenDetail = () => {
+        setOpenDetail(true);
+    };
+    const handleCloseDetail = () => {
+        setOpenDetail(false);
+    };
     if (columns.length === 0 && data.length === 0){
         table =
         <div class = "content">
@@ -236,7 +287,7 @@ function UserInput(){
                             </Typography>
                             <CardActions className={classes.inputCardAction}>
                                 <Button className = {classes.button} variant="contained" color= "primary" onClick={() =>
-                                Upload(selectedFile, wallet, shakepayWallet,setColumns, setData, setTaxInfo, setLoading, setShakepayWallet, setError, year)}>Upload </Button>
+                                Upload(selectedFile, wallet, shakepayWallet,setColumns, setData, setTaxInfo, setLoading, setShakepayWallet, setError, year, setErrorEth, setErrorFile)}>Upload </Button>
                             </CardActions>
                             <Typography>
                                 <h4> Optional </h4>
@@ -246,12 +297,14 @@ function UserInput(){
                                 Shakepay Ethereum Wallet: <input type="text" name="shakepayWallet" onChange={event => setShakepayWallet(event.target.value)} />
                             </CardActions>
                             <CardActions className={classes.inputCardAction}>
-                                non-Shakepay Ethereum Wallet: <input type="text" name="wallet" onChange={(event) => { const value = event.target.value;
+                                non-Shakepay Ethereum Wallets (comma separated): <input type="text" name="wallet" onChange={(event) => { const value = event.target.value;
                                 setWallet(event.target.value);}}/>
                             </CardActions>
                             <Typography>
                                 {loading ? <CircularProgress /> : ""}
                                 {error ? "No csv selected or year is empty" : ""}
+                                {errorFile ? "Format incorrect in csv" : ""}
+                                {errorEth ? "Fill in Shakepay Wallet address" : ""}
                             </Typography>
                         </CardContent>
                     </Card>
@@ -268,18 +321,47 @@ function UserInput(){
                     <Card className = {classes.inputCard}>
                         <CardContent>
                             <div>
-                                <Typography>
-                                    Income: {taxInfo.incomeGain}
-                                </Typography>
-                                <Typography>
-                                    Capital gain: {taxInfo.capitalGain}
-                                </Typography>
-                                <Typography>
-                                    Taxable Income: {+taxInfo.incomeGain + +taxInfo.capitalGain * 0.5}
-                                </Typography>
+                                <Accordion disabled className = {classes.disabledAccordion}>
+                                    <AccordionSummary
+                                    aria-controls="panel1a-content"
+                                    id="panel1a-header"
+                                    className = {classes.disabledAccordionSummary}
+                                    >
+                                        <Typography>
+                                            Income: {taxInfo.incomeGain}
+                                        </Typography>
+                                     </AccordionSummary>
+                                </Accordion>
+                                <Accordion>
+                                    <AccordionSummary
+                                    expandIcon={<ExpandMoreIcon />}
+                                    aria-controls="panel2a-content"
+                                    id="panel2a-header"
+                                    >
+                                        <Typography>
+                                            Capital gain: {taxInfo.capitalGain}
+                                        </Typography>
+                                     </AccordionSummary>
+                                     <AccordionDetails>
+                                        <Typography>
+                                            test
+                                        </Typography>
+                                     </AccordionDetails>
+                                </Accordion>
+                               <Accordion disabled className = {classes.disabledAccordion}>
+                                    <AccordionSummary
+                                    aria-controls="panel3a-content"
+                                    id="panel3a-header"
+                                    className = {classes.disabledAccordionSummary}
+                                    >
+                                        <Typography>
+                                            Taxable Income: {+taxInfo.incomeGain + +taxInfo.capitalGain * 0.5}
+                                        </Typography>
+                                     </AccordionSummary>
+                                </Accordion>
                             </div>
                             <CardActions className={classes.inputCardAction}>
-                                <Button className = {classes.button} variant="contained" color= "primary" onClick={() => setDisplayIncome(!displayIncome)}>Show more details </Button>
+                                <Button className = {classes.button} variant="contained" color= "primary" onClick={handleClickOpenDetail} >Show more details </Button>
                             </CardActions>
                             <CardActions className={classes.inputCardAction}>
                                 <Button className = {classes.button} variant="contained" color= "primary" onClick={handleClickOpenTable}  >Display transaction table </Button>
@@ -291,7 +373,8 @@ function UserInput(){
 
                 </Grid>
             </Grid>
-            <TableDialog openTable={openTable} onClose={handleClose} data = {data} columns = {columns} />
+            <TableDialog openTable = {openTable} onCloseTable = {handleCloseTable} data = {data} columns = {columns} />
+            <MoreDetailDialog openDetail = {openDetail} onCloseDetail = {handleCloseDetail} taxInfo = {taxInfo} />
         </div>
     }
     return (
@@ -301,36 +384,49 @@ function UserInput(){
     )
 }
 
-function Upload(selectedFile, wallet, shakepayWallet ,setColumns, setData, setTaxInfo,setLoading, setShakepayWallet, setError, year){
+function Upload(selectedFile, wallet, shakepayWallet ,setColumns, setData, setTaxInfo,setLoading, setShakepayWallet, setError, year, setErrorEth, setErrorFile){
     if(selectedFile == null || year == null){
         setError(true)
         setLoading(false)
     }
+    else if((wallet != null && shakepayWallet == null) || (wallet != null && shakepayWallet == "") ){
+        setErrorEth(true)
+        setLoading(false)
+    }
     else{
         setError(false)
+        setErrorEth(false)
         setLoading(true)
         const payload = new FormData()
         payload.append('file', selectedFile)
         payload.append('wallet', wallet)
         payload.append('shakepayWallet', shakepayWallet)
+        payload.append('year', year)
+        console.log(year)
         axios.post("/upload", payload, {
             }).then(res => {
-                    CreateTable(res.data.table ,res.data.columns, setColumns, setData)
-                    const info = JSON.parse(res.data.info)
-                    setTaxInfo({
-                        incomeGain: info.incomeGain,
-                        capitalGain: info.capitalGain,
-                        totalNumberETH: info.totalNumberETH,
-                        totalSalePriceETH: info.totalSalePriceETH,
-                        totalCostETH: info.totalCostETH,
-                        totalFeesETH: info.totalFeesETH,
-                        totalGainsETH: info.totalGainsETH,
-                        totalNumberBTC: info.totalNumberBTC,
-                        totalSalePriceBTC: info.totalSalePriceBTC,
-                        totalCostBTC: info.totalCostBTC,
-                        totalFeesBTC: info.totalFeesBTC,
-                        totalGainsBTC: info.totalGainsBTC
-                        })
+                    if(res.data.error == "true"){
+                        setErrorFile(true)
+                        setLoading(false)
+                    }
+                    else{
+                        CreateTable(res.data.table ,res.data.columns, setColumns, setData)
+                        const info = JSON.parse(res.data.info)
+                        setTaxInfo({
+                            incomeGain: info.incomeGain,
+                            capitalGain: info.capitalGain,
+                            totalNumberETH: info.totalNumberETH,
+                            totalSalePriceETH: info.totalSalePriceETH,
+                            totalCostETH: info.totalCostETH,
+                            totalFeesETH: info.totalFeesETH,
+                            totalGainsETH: info.totalGainsETH,
+                            totalNumberBTC: info.totalNumberBTC,
+                            totalSalePriceBTC: info.totalSalePriceBTC,
+                            totalCostBTC: info.totalCostBTC,
+                            totalFeesBTC: info.totalFeesBTC,
+                            totalGainsBTC: info.totalGainsBTC
+                            })
+                    }
                 })
     }
 }
@@ -342,7 +438,7 @@ class App extends Component {
         <Grid Container disableGutters maxWidth= "false" direction="column" alignItems="center" id = "website">
             <Grid item xs={12} id = "title">
                 <h1> Crypto gains </h1>
-                <h4> for Shakepay and Ethereum</h4>
+                <h4> for Shakepay and Ethereum mining</h4>
             </Grid>
             <Grid item xs={12} id = "results">
                 <UserInput/>

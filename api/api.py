@@ -35,8 +35,16 @@ def processTax():
     setup()
     content = request.files['file']
     g.walletAddresses = request.form['wallet']
+    g.shakepayAddress = request.form['shakepayWallet']
+    year = request.form['year']
     df = pd.read_csv(content)
-    df = formatDataFrame(df)
+    #if csv is incorrect send error
+    try:
+        df = formatDataFrame(df)
+    except KeyError:
+        dataToBeSent = {"error": "true"}
+        return json.dumps(dataToBeSent)
+
     dfTax = pd.DataFrame(columns=['Number', 'Name of fund/corp. and class of shares',
                                   '(1) Year of acquisition',
                                   '(2) Proceeds of disposition',
@@ -53,17 +61,34 @@ def processTax():
             df = mergeEtherScan(df,address)
             df = sortByDate(df)
         time.sleep(1)  # delay so etherscan api does not exceed limit
-    df, dfTax = calculateTax(df, dfTax)
-    df['id'] = df.index + 1
+
     # convert back to readable dates
-    df['Date'] = pd.to_datetime(df['Date'], unit='s')
-    df['Date'] = df['Date'].dt.strftime('%Y-%m-%d %H:%M:%S')
+    df = filterByYear(df, year)
+    df["Date"] = pd.to_datetime(df["Date"], unit='s')
+    df["Date"] = df["Date"].dt.strftime('%Y-%m-%d %H:%M:%S')
+
+    try:
+        if not df.empty:
+            df, dfTax = calculateTax(df, dfTax)
+            totalNumberETH, totalSalePriceETH, totalCostETH, totalFeesETH, totalGainsETH \
+                = calculateCapitalGain(dfTax, "Ethereum")
+            totalNumberBTC, totalSalePriceBTC, totalCostBTC, totalFeesBTC, totalGainsBTC \
+                = calculateCapitalGain(dfTax, "Bitcoin")
+        else:
+            df = pd.DataFrame( {"Transaction Type" : ['No entries']})
+            totalNumberETH, totalSalePriceETH, totalCostETH, totalFeesETH, totalGainsETH \
+                = "0", "0", "0", "0", 0
+            totalNumberBTC, totalSalePriceBTC, totalCostBTC, totalFeesBTC, totalGainsBTC \
+                = "0", "0", "0", "0", 0
+    except KeyError:
+        dataToBeSent = {"error": "true"}
+        return json.dumps(dataToBeSent)
+
     # format and send back to frontend
     res = json.loads(df.to_json(orient='records'))
     tax = json.loads(dfTax.to_json(orient='records'))
 
-    totalNumberETH, totalSalePriceETH, totalCostETH, totalFeesETH, totalGainsETH = calculateCapitalGain(dfTax,"Ethereum")
-    totalNumberBTC, totalSalePriceBTC, totalCostBTC, totalFeesBTC, totalGainsBTC = calculateCapitalGain(dfTax,"Bitcoin")
+
     columns = [
         {"title": 'Transaction Type', "field": 'Transaction Type'},
         {"title": 'Date', "field": 'Date'},
@@ -93,12 +118,26 @@ def processTax():
     }
     infoJson = json.dumps(info)
 
-    dataToBeSent = {"columns": columns, "table": res, "info": infoJson}
+    dataToBeSent = {"columns": columns, "table": res, "info": infoJson, "error": "false"}
     return json.dumps(dataToBeSent)
 
+
 def sortByDate(df):
-    df.sort_values(by=['Date'], inplace=True, ignore_index=True)
+    df.sort_values(by=["Date"], inplace=True, ignore_index=True)
     return df
+
+
+def filterByYear(df, year):
+    if year.isnumeric():
+        if int(year) < 1970:
+            year = "1970"
+    startOfYear = pd.Timestamp(year + "-01-01")
+    endOfYear = pd.Timestamp(year + "-12-31")
+    unixStartOfYear = (startOfYear - pd.Timestamp("1970-01-01")) // pd.Timedelta("1s")
+    unixEndOfYear = (endOfYear - pd.Timestamp("1970-01-01")) // pd.Timedelta("1s")
+    mask = (df["Date"] > unixStartOfYear ) & (df["Date"] <= unixEndOfYear)
+    return df.loc[mask]
+
 
 def formatDataFrame(df):
     df = df.fillna("")
