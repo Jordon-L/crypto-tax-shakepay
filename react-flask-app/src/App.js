@@ -33,6 +33,11 @@ import Accordion from '@material-ui/core/Accordion';
 import AccordionSummary from '@material-ui/core/AccordionSummary';
 import AccordionDetails from '@material-ui/core/AccordionDetails';
 import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
+import DateFnsUtils from "@date-io/date-fns";
+import {
+  DatePicker,
+  MuiPickersUtilsProvider
+} from "@material-ui/pickers";
 
 const useStyles = makeStyles((theme) => ({
     root : {
@@ -80,6 +85,9 @@ const useStyles = makeStyles((theme) => ({
     },
     disabledAccordionSummary: {
         opacity : '1 !important'
+    },
+    moreDetail :{
+        marginLeft: '0.5em'
     },
 }));
 
@@ -206,7 +214,6 @@ function MoreDetailDialog(props){
 function UserInput(){
     const [selectedFile, setSelectedFile] = useState(null);
     const [shakepayWallet, setShakepayWallet] = useState(null);
-    const [year, setYear] = useState(null);
     const [wallet, setWallet] = useState(null);
     const [columns, setColumns] = useState([]);
     const [data, setData] = useState([]);
@@ -222,6 +229,16 @@ function UserInput(){
     const [openTable, setOpenTable] = React.useState(false);
     const [openDetail, setOpenDetail] = React.useState(false);
     const [errorEth, setErrorEth] = React.useState(false);
+    const [selectedDate, handleDateChange] = useState(new Date());
+
+    let today = new Date();
+
+    let year = today.getFullYear();
+    let month = today.getMonth();
+    let day = today.getDate();
+    let minDate = new Date(year - 5, month, day);
+    let maxDate = today;
+
     let table;
 
     const classes = useStyles();
@@ -259,8 +276,17 @@ function UserInput(){
                 <Grid item xs={12} className = {classes.grid}>
                     <Card>
                         <CardContent className= {classes.inputCard}>
-                             <CardActions className={classes.inputCardAction}>
-                                Year: <input type="text" name="year" onChange={event => setYear(event.target.value)} />
+                            <CardActions className= {classes.inputCardAction}>
+                                    Year:
+                                   <MuiPickersUtilsProvider utils={DateFnsUtils}>
+                                    <DatePicker
+                                        value={selectedDate}
+                                        onChange={handleDateChange}
+                                        views={['year'] }
+                                        minDate= {minDate}
+                                        maxDate= {maxDate}
+                                    />
+                                </MuiPickersUtilsProvider>
                             </CardActions>
                             <Typography>
                                 Shakepay csv file:
@@ -287,7 +313,7 @@ function UserInput(){
                             </Typography>
                             <CardActions className={classes.inputCardAction}>
                                 <Button className = {classes.button} variant="contained" color= "primary" onClick={() =>
-                                Upload(selectedFile, wallet, shakepayWallet,setColumns, setData, setTaxInfo, setLoading, setShakepayWallet, setError, year, setErrorEth, setErrorFile)}>Upload </Button>
+                                Upload(selectedFile, wallet, shakepayWallet,setColumns, setData, setTaxInfo, setLoading, setShakepayWallet, setError, selectedDate, setErrorEth, setErrorFile)}>Upload </Button>
                             </CardActions>
                             <Typography>
                                 <h4> Optional </h4>
@@ -343,8 +369,42 @@ function UserInput(){
                                         </Typography>
                                      </AccordionSummary>
                                      <AccordionDetails>
-                                        <Typography>
-                                            test
+                                        <Typography className={classes.moreDetail}>
+                                            BTC
+                                             <Typography>
+                                                Total BTC: {taxInfo.totalNumberBTC}
+                                             </Typography>
+                                             <Typography>
+                                                Total Sale: {taxInfo.totalSalePriceBTC}
+                                             </Typography>
+                                             <Typography>
+                                                Total Cost: {taxInfo.totalCostBTC}
+                                             </Typography>
+                                             <Typography>
+                                                Total Fees: {taxInfo.totalFeesBTC}
+                                             </Typography>
+                                             <Typography>
+                                                Total Gain: {taxInfo.totalGainsBTC}
+                                             </Typography>
+                                        </Typography>
+
+                                        <Typography className={classes.moreDetail}>
+                                            ETH
+                                             <Typography>
+                                                Total ETH: {taxInfo.totalNumberETH}
+                                             </Typography>
+                                             <Typography>
+                                                Total Sale: {taxInfo.totalSalePriceETH}
+                                             </Typography>
+                                             <Typography>
+                                                Total Cost: {taxInfo.totalCostETH}
+                                             </Typography>
+                                             <Typography>
+                                                Total Fees: {taxInfo.totalFeesETH}
+                                             </Typography>
+                                             <Typography>
+                                                Total Gain: {taxInfo.totalGainsETH}
+                                             </Typography>
                                         </Typography>
                                      </AccordionDetails>
                                 </Accordion>
@@ -361,16 +421,10 @@ function UserInput(){
                                 </Accordion>
                             </div>
                             <CardActions className={classes.inputCardAction}>
-                                <Button className = {classes.button} variant="contained" color= "primary" onClick={handleClickOpenDetail} >Show more details </Button>
-                            </CardActions>
-                            <CardActions className={classes.inputCardAction}>
                                 <Button className = {classes.button} variant="contained" color= "primary" onClick={handleClickOpenTable}  >Display transaction table </Button>
                             </CardActions>
                         </CardContent>
                     </Card>
-                </Grid>
-                <Grid item xs={12} id = "displayTableButton" >
-
                 </Grid>
             </Grid>
             <TableDialog openTable = {openTable} onCloseTable = {handleCloseTable} data = {data} columns = {columns} />
@@ -384,8 +438,8 @@ function UserInput(){
     )
 }
 
-function Upload(selectedFile, wallet, shakepayWallet ,setColumns, setData, setTaxInfo,setLoading, setShakepayWallet, setError, year, setErrorEth, setErrorFile){
-    if(selectedFile == null || year == null){
+function Upload(selectedFile, wallet, shakepayWallet ,setColumns, setData, setTaxInfo,setLoading, setShakepayWallet, setError, selectedDate, setErrorEth, setErrorFile){
+    if(selectedFile == null || selectedDate == null){
         setError(true)
         setLoading(false)
     }
@@ -396,13 +450,14 @@ function Upload(selectedFile, wallet, shakepayWallet ,setColumns, setData, setTa
     else{
         setError(false)
         setErrorEth(false)
+        setErrorFile(false)
         setLoading(true)
         const payload = new FormData()
         payload.append('file', selectedFile)
         payload.append('wallet', wallet)
         payload.append('shakepayWallet', shakepayWallet)
-        payload.append('year', year)
-        console.log(year)
+        console.log(selectedDate.getFullYear())
+        payload.append('year', selectedDate.getFullYear())
         axios.post("/upload", payload, {
             }).then(res => {
                     if(res.data.error == "true"){

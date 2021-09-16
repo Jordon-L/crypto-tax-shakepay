@@ -39,6 +39,10 @@ def processTax():
     year = request.form['year']
     df = pd.read_csv(content)
     #if csv is incorrect send error
+    if('Taken From' in df):
+        # if user inputs downloaded csv from this website
+        dataToBeSent = {"error": "true"}
+        return json.dumps(dataToBeSent)
     try:
         df = formatDataFrame(df)
     except KeyError:
