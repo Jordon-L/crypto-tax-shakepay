@@ -42,18 +42,31 @@
 
 
 h1{
-  padding-top: 50px;
-  text-align:center;
+    padding-top: 50px;
+    text-align:center;
 }
 
 h4{
-  text-align:center;
+    text-align:center;
 }
 body {
     background-color: #ECECEC;
 }
 
-#disclaimer{
-    margin-right: 25%;
-    margin-left: 25%
+#website{
+    height : 100%;
+    width : 100%;
+    position: absolute;
+}
+
+#content {
+  display: flex;
+  align-items: center;
+}
+
+#footer {
+    position:absolute;
+    left:0;
+    bottom:0;
+    right:0;
 }

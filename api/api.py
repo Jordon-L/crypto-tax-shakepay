@@ -13,20 +13,20 @@ CORS(app)
 errorEpsilon = sys.float_info.epsilon
 
 def setup():
-    g.totalCAD = 0
-    g.totalBTC = 0
-    g.totalETH = 0
-    g.avgCAD = 0
-    g.avgBTC = 0
-    g.avgETH = 0
-    g.incomeGain = 0
-    g.capitalGain = 0
-    g.capitalLoss = 0
-    g.bankTransferOutCAD = 0
-    g.CADSent = 0
-    g.CADReceived = 0
+    g.totalCAD = Decimal(0)
+    g.totalBTC = Decimal(0)
+    g.totalETH = Decimal(0)
+    g.avgCAD = Decimal(0)
+    g.avgBTC = Decimal(0)
+    g.avgETH = Decimal(0)
+    g.incomeGain = Decimal(0)
+    g.capitalGain = Decimal(0)
+    g.capitalLoss = Decimal(0)
+    g.bankTransferOutCAD = Decimal(0)
+    g.CADSent = Decimal(0)
+    g.CADReceived = Decimal(0)
     g.send = []
-    g.feesInCAD = 0
+    g.feesInCAD = Decimal(0)
 
 
 # process income gain and capital gain using csv from shakepay, then display
@@ -204,6 +204,7 @@ def setAvgCost(currency, amount):
 def peerTransfer(row):
     event = ""
     incomeGain = g.incomeGain
+
     # if canadian dollar is received or sent out in shakepay app
     if row["Credit Currency"] == 'CAD':
         event = "Transfer Fiat"
@@ -471,13 +472,12 @@ def calculateCapitalGain(tableTax, currencyName):
     totalFees = 0
     totalGains = 0
     for index, row in tax.iterrows():
-        totalCost +=  row["Cost"]
+        totalCost += row["Cost"]
         totalNumber += row["Number"]
-        totalSalePrice +=  row["Sold For"]
+        totalSalePrice += row["Sold For"]
         totalFees += row["Fees"]
         totalGains += row["Gain"]
 
-    print(totalNumber,totalSalePrice, totalCost, totalFees, totalGains)
     return totalNumber, totalSalePrice, totalCost, totalFees, totalGains
 
 

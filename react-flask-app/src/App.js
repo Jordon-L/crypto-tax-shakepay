@@ -10,9 +10,7 @@ import TableContainer from '@material-ui/core/TableContainer';
 import TablePagination from '@material-ui/core/TablePagination';
 import TableRow from '@material-ui/core/TableRow';
 import TableFooter from '@material-ui/core/TableFooter';
-import Paper from '@material-ui/core/Paper';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import CssBaseline from '@material-ui/core/CssBaseline';
 import Typography from '@material-ui/core/Typography';
 import Container from '@material-ui/core/Container';
 import Button from '@material-ui/core/Button';
@@ -26,8 +24,6 @@ import DialogActions from '@material-ui/core/DialogActions';
 import DialogContent from '@material-ui/core/DialogContent';
 import DialogContentText from '@material-ui/core/DialogContentText';
 import DialogTitle from '@material-ui/core/DialogTitle';
-import useMediaQuery from '@material-ui/core/useMediaQuery';
-import { useTheme } from '@material-ui/core/styles';
 import { CSVLink } from "react-csv";
 import Accordion from '@material-ui/core/Accordion';
 import AccordionSummary from '@material-ui/core/AccordionSummary';
@@ -101,7 +97,7 @@ function displayFileName(name){
     displayLocation.innerHTML = "Selected File: " + name;
 }
 function TableDialog(props){
-        const { openTable, onCloseTable, data, columns } = props;
+    const { openTable, onCloseTable, data, columns } = props;
     const classes = useStyles();
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -192,21 +188,33 @@ function TableDialog(props){
     )
 
 }
-function MoreDetailDialog(props){
-    const { openDetail, onCloseDetail, taxInfo} = props;
+
+function Disclaimer(props){
+    const classes = useStyles();
+    const { openDisclaimer, onCloseDisclaimer} = props;
 
     return (
         <Dialog
-            onClose={onCloseDetail}
+            onClose={onCloseDisclaimer}
             maxWidth = '1500px'
-            open={openDetail}
+            open={openDisclaimer}
         >
-            <DialogTitle>Breakdown of Capital Gain</DialogTitle>
+            <DialogTitle>Disclaimer</DialogTitle>
             <DialogContent>
                 <DialogContentText>
-                    {taxInfo.capitalGain}
+                    This application is not a replacement for a professional accountant. This application was made with the intention of learning.
+                    Please do not use as a solution for your tax purposes. Please use commercial products like Koinly (paid) or Crypto.com Tax (free)
                 </DialogContentText>
             </DialogContent>
+            <DialogActions>
+               <Button className = {classes.button}
+                onClick={onCloseDisclaimer}
+                variant = "contained"
+                component = "label"
+                >
+                    Close
+                </Button>
+            </DialogActions>
         </Dialog>
     )
 }
@@ -217,19 +225,14 @@ function UserInput(){
     const [wallet, setWallet] = useState(null);
     const [columns, setColumns] = useState([]);
     const [data, setData] = useState([]);
-    const [taxData, setTaxData] = useState([]);
-    const [taxColumns, setTaxColumns] = useState([]);
     const [taxInfo, setTaxInfo] = useState({});
-    const [displayTable, setDisplayTable] = useState(false);
-    const [displayCapital, setDisplayCapital] = useState(false);
-    const [displayIncome, setDisplayIncome] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(false);
     const [errorFile, setErrorFile] = useState(false);
     const [openTable, setOpenTable] = React.useState(false);
-    const [openDetail, setOpenDetail] = React.useState(false);
     const [errorEth, setErrorEth] = React.useState(false);
     const [selectedDate, handleDateChange] = useState(new Date());
+    const [openDisclaimer, setDisclaimer] = useState(true);
 
     let today = new Date();
 
@@ -262,12 +265,10 @@ function UserInput(){
         setOpenTable(false);
     };
 
-    const handleClickOpenDetail = () => {
-        setOpenDetail(true);
+    const handleCloseDisclaimer = () => {
+        setDisclaimer(false);
     };
-    const handleCloseDetail = () => {
-        setOpenDetail(false);
-    };
+
     if (columns.length === 0 && data.length === 0){
         table =
         <div class = "content">
@@ -323,7 +324,7 @@ function UserInput(){
                                 Shakepay Ethereum Wallet: <input type="text" name="shakepayWallet" onChange={event => setShakepayWallet(event.target.value)} />
                             </CardActions>
                             <CardActions className={classes.inputCardAction}>
-                                non-Shakepay Ethereum Wallets (comma separated): <input type="text" name="wallet" onChange={(event) => { const value = event.target.value;
+                                non-Shakepay Ethereum Wallets (comma separated): <input type="text" name="wallet" onChange={(event) => {
                                 setWallet(event.target.value);}}/>
                             </CardActions>
                             <Typography>
@@ -336,6 +337,7 @@ function UserInput(){
                     </Card>
                 </Grid>
             </Grid>
+            <Disclaimer openDisclaimer = {openDisclaimer} onCloseDisclaimer = {handleCloseDisclaimer} />
         </div>
     }
     else{
@@ -428,7 +430,6 @@ function UserInput(){
                 </Grid>
             </Grid>
             <TableDialog openTable = {openTable} onCloseTable = {handleCloseTable} data = {data} columns = {columns} />
-            <MoreDetailDialog openDetail = {openDetail} onCloseDetail = {handleCloseDetail} taxInfo = {taxInfo} />
         </div>
     }
     return (
@@ -439,11 +440,11 @@ function UserInput(){
 }
 
 function Upload(selectedFile, wallet, shakepayWallet ,setColumns, setData, setTaxInfo,setLoading, setShakepayWallet, setError, selectedDate, setErrorEth, setErrorFile){
-    if(selectedFile == null || selectedDate == null){
+    if(selectedFile === null || selectedDate === null){
         setError(true)
         setLoading(false)
     }
-    else if((wallet != null && shakepayWallet == null) || (wallet != null && shakepayWallet == "") ){
+    else if((wallet != null && shakepayWallet === null) || (wallet != null && shakepayWallet === "") ){
         setErrorEth(true)
         setLoading(false)
     }
@@ -460,7 +461,7 @@ function Upload(selectedFile, wallet, shakepayWallet ,setColumns, setData, setTa
         payload.append('year', selectedDate.getFullYear())
         axios.post("/upload", payload, {
             }).then(res => {
-                    if(res.data.error == "true"){
+                    if(res.data.error === "true"){
                         setErrorFile(true)
                         setLoading(false)
                     }
@@ -490,15 +491,20 @@ class App extends Component {
     render(){
 
         return (
-        <Grid Container disableGutters maxWidth= "false" direction="column" alignItems="center" id = "website">
-            <Grid item xs={12} id = "title">
-                <h1> Crypto gains </h1>
-                <h4> for Shakepay and Ethereum mining</h4>
+        <div id = "website">
+            <Grid Container disableGutters maxWidth= "false" direction="column" alignItems="center" id = "content">
+                <Grid item xs={12} id = "title">
+                    <h1> Crypto gains </h1>
+                    <h4> for Shakepay and Ethereum mining</h4>
+                </Grid>
+                <Grid item xs={12} id = "results">
+                    <UserInput/>
+                </Grid>
             </Grid>
-            <Grid item xs={12} id = "results">
-                <UserInput/>
-            </Grid>
-        </Grid>
+           <div id = "footer">
+                <p>Powered By Coingecko API and Etherscan API</p>
+            </div>
+        </div>
     );}
 
 }
