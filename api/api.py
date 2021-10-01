@@ -3,26 +3,30 @@ from app import app
 import json
 import re
 import time
+import sys
 from api.EthScanTransactions import *
-#from flask_cors import CORS
+from flask_cors import CORS
 pd.options.display.precision = 10
 pd.set_option('display.max_colwidth', None)
-#CORS(app)
+CORS(app)
+
+errorEpsilon = sys.float_info.epsilon
 
 def setup():
-    g.totalCAD = 0
-    g.totalBTC = 0
-    g.totalETH = 0
-    g.avgCAD = 0
-    g.avgBTC = 0
-    g.avgETH = 0
-    g.incomeGain = 0
-    g.capitalGain = 0
-    g.capitalLoss = 0
-    g.bankTransferOutCAD = 0
-    g.CADSent = 0
-    g.CADReceived = 0
+    g.totalCAD = Decimal(0)
+    g.totalBTC = Decimal(0)
+    g.totalETH = Decimal(0)
+    g.avgCAD = Decimal(0)
+    g.avgBTC = Decimal(0)
+    g.avgETH = Decimal(0)
+    g.incomeGain = Decimal(0)
+    g.capitalGain = Decimal(0)
+    g.capitalLoss = Decimal(0)
+    g.bankTransferOutCAD = Decimal(0)
+    g.CADSent = Decimal(0)
+    g.CADReceived = Decimal(0)
     g.send = []
+    g.feesInCAD = Decimal(0)
 
 
 # process income gain and capital gain using csv from shakepay, then display
@@ -31,8 +35,26 @@ def processTax():
     setup()
     content = request.files['file']
     g.walletAddresses = request.form['wallet']
+    g.shakepayAddress = request.form['shakepayWallet']
+    year = request.form['year']
     df = pd.read_csv(content)
-    df = formatDataFrame(df)
+    #if csv is incorrect send error
+    if('Taken From' in df):
+        # if user inputs downloaded csv from this website
+        dataToBeSent = {"error": "true"}
+        return json.dumps(dataToBeSent)
+    try:
+        df = formatDataFrame(df)
+    except KeyError:
+        dataToBeSent = {"error": "true"}
+        return json.dumps(dataToBeSent)
+
+    dfTax = pd.DataFrame(columns=['Number', 'Name of fund/corp. and class of shares',
+                                  '(1) Year of acquisition',
+                                  '(2) Proceeds of disposition',
+                                  '(3) Adjusted cost base',
+                                  '(4) Outlays and expenses (from dispositions)',
+                                  '(5) Gain (or loss) (column 2 minus columns 3 and 4)'])
     addresses = g.walletAddresses.split(",")
     g.walletAddresses = addresses
     ethAddress = re.compile("^0x[a-fA-F0-9]{40}$")
@@ -43,14 +65,34 @@ def processTax():
             df = mergeEtherScan(df,address)
             df = sortByDate(df)
         time.sleep(1)  # delay so etherscan api does not exceed limit
-    df = calculateTax(df)
-    df['id'] = df.index + 1
+
     # convert back to readable dates
-    df['Date'] = pd.to_datetime(df['Date'], unit='s')
-    df['Date'] = df['Date'].dt.strftime('%Y-%m-%d %H:%M:%S')
+    df = filterByYear(df, year)
+    df["Date"] = pd.to_datetime(df["Date"], unit='s')
+    df["Date"] = df["Date"].dt.strftime('%Y-%m-%d %H:%M:%S')
+
+    try:
+        if not df.empty:
+            df, dfTax = calculateTax(df, dfTax)
+            totalNumberETH, totalSalePriceETH, totalCostETH, totalFeesETH, totalGainsETH \
+                = calculateCapitalGain(dfTax, "Ethereum")
+            totalNumberBTC, totalSalePriceBTC, totalCostBTC, totalFeesBTC, totalGainsBTC \
+                = calculateCapitalGain(dfTax, "Bitcoin")
+        else:
+            df = pd.DataFrame( {"Transaction Type" : ['No entries']})
+            totalNumberETH, totalSalePriceETH, totalCostETH, totalFeesETH, totalGainsETH \
+                = "0", "0", "0", "0", 0
+            totalNumberBTC, totalSalePriceBTC, totalCostBTC, totalFeesBTC, totalGainsBTC \
+                = "0", "0", "0", "0", 0
+    except KeyError:
+        dataToBeSent = {"error": "true"}
+        return json.dumps(dataToBeSent)
 
     # format and send back to frontend
     res = json.loads(df.to_json(orient='records'))
+    tax = json.loads(dfTax.to_json(orient='records'))
+
+
     columns = [
         {"title": 'Transaction Type', "field": 'Transaction Type'},
         {"title": 'Date', "field": 'Date'},
@@ -64,25 +106,42 @@ def processTax():
         {"title": 'Source / Destination', "field": 'Source / Destination'}
         ]
     info = {
-        "incomeGain": str(g.incomeGain),
-        "capitalGain": str(g.capitalGain),
-        "capitalLoss": str(g.capitalLoss),
-        "totalBTC": str(g.totalBTC),
-        "totalETH": str(g.totalETH),
-        "CADSent": str(g.CADSent),
-        "CADReceived": str(g.CADReceived),
-        "totalCAD": str(g.totalCAD),
-        "avgBTC": str(g.avgBTC),
-        "avgETH": str(g.avgETH)
+        "incomeGain": str(round(g.incomeGain,4)),
+        "capitalGain": str(totalGainsETH+totalGainsBTC),
+        "totalNumberETH": str(totalNumberETH),
+        "totalSalePriceETH": str(totalSalePriceETH),
+        "totalCostETH": str(totalCostETH),
+        "totalFeesETH": str(totalFeesETH),
+        "totalGainsETH": str(totalGainsETH),
+
+        "totalNumberBTC": str(totalNumberBTC),
+        "totalSalePriceBTC": str(totalSalePriceBTC),
+        "totalCostBTC": str(totalCostBTC),
+        "totalFeesBTC": str(totalFeesBTC),
+        "totalGainsBTC": str(totalGainsBTC)
     }
+    infoJson = json.dumps(info)
 
-
-    dataToBeSent = {"columns": columns, "table": res, "info": info}
+    dataToBeSent = {"columns": columns, "table": res, "info": infoJson, "error": "false"}
     return json.dumps(dataToBeSent)
 
+
 def sortByDate(df):
-    df.sort_values(by=['Date'], inplace=True, ignore_index=True)
+    df.sort_values(by=["Date"], inplace=True, ignore_index=True)
     return df
+
+
+def filterByYear(df, year):
+    if year.isnumeric():
+        if int(year) < 1970:
+            year = "1970"
+    startOfYear = pd.Timestamp(year + "-01-01")
+    endOfYear = pd.Timestamp(year + "-12-31")
+    unixStartOfYear = (startOfYear - pd.Timestamp("1970-01-01")) // pd.Timedelta("1s")
+    unixEndOfYear = (endOfYear - pd.Timestamp("1970-01-01")) // pd.Timedelta("1s")
+    mask = (df["Date"] > unixStartOfYear ) & (df["Date"] <= unixEndOfYear)
+    return df.loc[mask]
+
 
 def formatDataFrame(df):
     df = df.fillna("")
@@ -110,7 +169,7 @@ def getCurrencyTotals(currency):
 
 # Set amount of a currency in the user's possession
 def setCurrencyTotals(currency, amount):
-    if amount < 0:
+    if amount < errorEpsilon:
         amount = 0
     if currency == "CAD":
         g.totalCAD = amount
@@ -145,6 +204,7 @@ def setAvgCost(currency, amount):
 def peerTransfer(row):
     event = ""
     incomeGain = g.incomeGain
+
     # if canadian dollar is received or sent out in shakepay app
     if row["Credit Currency"] == 'CAD':
         event = "Transfer Fiat"
@@ -163,6 +223,7 @@ def peerTransfer(row):
         creditCurrency = row["Credit Currency"]
         totalCreditCurrency = getCurrencyTotals(creditCurrency)
         if row["Spot Rate"] == "":
+            #if spot rate is empty for some reason. continue runnning code
             incomeGain += 0
         else:
             incomeGain += credit * row["Spot Rate"]
@@ -197,7 +258,7 @@ def purchaseSale(row):
     totalCreditCurrency = getCurrencyTotals(creditCurrency)
     buyPrice = row["Buy / Sell Rate"]
     currentAvg = getAvgCost(creditCurrency)
-    newAvg = (currentAvg * totalCreditCurrency) + (buyPrice * credit) / (totalCreditCurrency + credit)
+    newAvg = (currentAvg * totalCreditCurrency + buyPrice * credit) / (totalCreditCurrency + credit)
     setAvgCost(creditCurrency, newAvg)
     setCurrencyTotals(creditCurrency, totalCreditCurrency + credit)
     # debit
@@ -220,8 +281,7 @@ def purchaseSale(row):
             event = "Capital gain"
             capitalGain += gain
             g.capitalGain = capitalGain
-    if getCurrencyTotals(debitCurrency) == 0:
-        setAvgCost(debitCurrency, 0)
+
     g.capitalGain = capitalGain
     return event
 
@@ -255,9 +315,6 @@ def cryptoCashout(row):
         event = "Internal transfer"
         g.send.append(row)
 
-    if getCurrencyTotals(debitCurrency) == 0:
-        setAvgCost(debitCurrency, 0)
-
     return event
 
 
@@ -273,6 +330,12 @@ def referralReward(row):
 
 def cryptoFunding(row):
     event = "Internal transfer"
+
+    credit = row["Amount Credited"]
+    creditCurrency = row["Credit Currency"]
+    totalCreditCurrency = getCurrencyTotals(creditCurrency)
+    setCurrencyTotals(creditCurrency, totalCreditCurrency + credit)
+
     return event
 
 
@@ -291,14 +354,16 @@ def walletReceive(row):
     event = ""
     credit = Decimal(row["Amount Credited"])
     averagePrice = g.avgETH
-    total = g.totalETH
+    creditCurrency = row["Credit Currency"]
+    total = getCurrencyTotals(creditCurrency)
     sendTransactions = g.send
     # check transaction was by user
     if sendTransactions:
-        event = "Internal transfer"
+        event = "Error"
         for sendRow in sendTransactions:
             debit = Decimal(sendRow["Amount Debited"])
             if credit.compare(debit):
+                event = "Internal transfer"
                 del sendTransactions[0]
         g.send = sendTransactions
         total = total + credit
@@ -310,8 +375,8 @@ def walletReceive(row):
         income = int(price) * credit
         averagePrice = (averagePrice * total + income) / (credit + total)
         total = total + credit
-        g.totalETH = total
-        g.avgETH = averagePrice
+        setCurrencyTotals(creditCurrency, total)
+        setAvgCost(creditCurrency, averagePrice)
         g.incomeGain += income
     return event
 
@@ -320,10 +385,12 @@ def walletReceive(row):
 def walletSend(row):
     event = "Internal transfer"
     debit = Decimal(row["Amount Debited"])
+    fees = row['fees']
     averagePrice = g.avgETH
     total = g.totalETH
-    total = total - debit
-    g.totalETH = total
+    total = total - debit - fees
+    g.feesInCAD += fees * row["Spot Rate"]
+    setCurrencyTotals(row["Debit Currency"], total)
     return event
 
 
@@ -338,25 +405,86 @@ TRANSACTION_PARSE = {
     "Receive": walletReceive,
     "Send": walletSend,
     "shakingsats": peerTransfer,
-    "other":referralReward
+    "other": referralReward
 }
 
 
-def calculateTax(table):
+def calculateTax(table, tableTax):
     for index, row in table.iterrows():
         event = TRANSACTION_PARSE.get(row["Transaction Type"], lambda x: print("Error"))(row)
         table.at[index, "Event"] = event
-        if(isinstance(row["Amount Credited"], str) == False):
-            table.at[index, "Amount Credited"] = "+" + str(round(row["Amount Credited"],4)) + " " + str(row["Credit Currency"])
-        if (isinstance(row["Amount Debited"], str) == False):
-            if(isinstance(row["Event"], str) != "Internal Transfer"):
+        # tax table
+        if event == "Capital gain" or event == "Capital loss":
+            debitCurrency = row["Debit Currency"]
+            number = round(row["Amount Debited"], 4)
+            name = "Error"
+            year = "placeholder"
+            # credit being empty means user transferred crypto to an account that is not theirs
+            if row["Amount Credited"] == "":
+                sold = round(row["Spot Rate"] * row["Amount Debited"], 4)
+            else:
+                sold = round(row["Amount Credited"], 4)
+            price = round(getAvgCost(debitCurrency) * row["Amount Debited"], 4)
+            fees = 0
+            if getCurrencyTotals(debitCurrency) == 0:
+                setAvgCost(debitCurrency, 0)
+            if row["Debit Currency"] == "ETH":
+                name = "Ethereum"
+                accumulatedFees = g.feesInCAD
+                fees = accumulatedFees * (row["Amount Debited"]/(row["Amount Debited"] + g.totalETH))
+                g.feesInCAD = accumulatedFees - fees
+                fees = round(fees, 4)
+            elif row["Debit Currency"] == "BTC":
+                name = "Bitcoin"
+            tableTax = tableTax.append({'Number': number, 'Name': name,
+                                        'Year of acquisition': year,
+                                        'Sold For': sold,
+                                        'Cost': price,
+                                        'Fees': fees,
+                                        'Gain': sold-price-fees}, ignore_index=True)
+        # reformatting of data table
+        if not isinstance(row["Amount Credited"], str):
+            table.at[index, "Amount Credited"] = "+" + str(round(row["Amount Credited"], 4)) + " " + str(row["Credit Currency"])
+        if not isinstance(row["Amount Debited"], str):
+            if isinstance(row["Event"], str) != "Internal Transfer":
                 table.at[index, "Amount Debited"] = "-" + str(round(row["Amount Debited"], 4)) + " " + str(row["Debit Currency"])
-    table.drop(columns=["Credit Currency", "Debit Currency", "Blockchain Transaction ID" ], axis = 1, inplace=True)
-    return table
+
+    if "fees" in table.columns:
+        table.drop(columns=["Credit Currency", "Debit Currency", "Blockchain Transaction ID", "fees"], axis=1,
+                   inplace=True)
+    else:
+        table.drop(columns=["Credit Currency", "Debit Currency", "Blockchain Transaction ID"], axis=1,
+                   inplace=True)
+    pd.options.display.max_columns = None
+    pd.options.display.max_rows = None
+
+    # remove fiat transfers
+    table = table[table.Event != 'Transfer Fiat']
+    table = table[table["Transaction Type"] != 'shakingsats']
+    return table, tableTax
+
+def calculateCapitalGain(tableTax, currencyName):
+    tax = tableTax[tableTax["Name"] == currencyName]
+
+    totalNumber = 0
+    totalCost = 0
+    totalSalePrice = 0
+    totalFees = 0
+    totalGains = 0
+    for index, row in tax.iterrows():
+        totalCost += row["Cost"]
+        totalNumber += row["Number"]
+        totalSalePrice += row["Sold For"]
+        totalFees += row["Fees"]
+        totalGains += row["Gain"]
+
+    return totalNumber, totalSalePrice, totalCost, totalFees, totalGains
+
+
 
 def mergeEtherScan(shakepayData,address):
     etherScanData = getEthTransactions_ShakepayFormat(address, 'ethereum', 'CAD')
-    mergedData = pd.concat([shakepayData, etherScanData],ignore_index = True)
+    mergedData = pd.concat([shakepayData, etherScanData], ignore_index=True)
     shakepayData = mergedData
     return shakepayData
 

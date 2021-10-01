@@ -38,20 +38,22 @@ def getEthTransactions_ShakepayFormat(walletAddress, currency, fiat):
     dfShakepay = pd.DataFrame(columns=
                               ["Transaction Type", "Date", "Amount Debited", "Debit Currency", "Amount Credited",
                                "Credit Currency", "Buy / Sell Rate", "Direction", "Spot Rate", "Source / Destination",
-                               "Blockchain Transaction ID", "Taken From", "Event"])
+                               "Blockchain Transaction ID", "Taken From", "Event", "fees"])
     for index, row in df.iterrows():
         # take the day the transaction occurs and get the price of the ethereum in canadian dollars on that day
         transactionTime = int(row["timeStamp"])
         dateOfTransaction = datetime.utcfromtimestamp(transactionTime).strftime('%d-%m-%Y')
         price = 0
-        price = getCoinGeckoDailyPrices(dateOfTransaction, dailyPrices)
+        price = Decimal(getCoinGeckoDailyPrices(dateOfTransaction, dailyPrices))
         #convert gwei to eth
         value = Decimal(row['value']) / Decimal('1000000000000000000')
+        fees = Decimal(row['gasPrice']) / Decimal('1000000000000000000')
+        fees = fees * Decimal(row['gas'])
         # if move eth out of wallet
         if row["from"].lower() == walletAddress.lower():
             dfShakepay = dfShakepay.append({"Transaction Type": "Send", "Date": transactionTime,
                                             "Amount Debited": value, "Debit Currency": "ETH", "Direction": "debit",
-                                            "Spot Rate": price, "Source / Destination": row["to"], "Taken From": "Etherscan", "Event": "",
+                                            "Spot Rate": price, "Source / Destination": row["to"], "Taken From": "Etherscan", "Event": "", "fees": fees
                                             }, ignore_index=True,)
         else:
             dfShakepay = dfShakepay.append({"Transaction Type": "Receive", "Date": transactionTime,
