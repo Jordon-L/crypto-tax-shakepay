@@ -4,6 +4,6 @@ Please do not use as a solution for your tax purposes. Please use commercial pro
 
 Application can be viewed here : https://crypto-tax-shakepay.herokuapp.com/
 
-Currently being migrating to Nodejs : https://github.com/Jordon-L/crypto-tax-shakepay-nodejs
+Currently migrating to Nodejs : https://github.com/Jordon-L/crypto-tax-shakepay-nodejs
 
 
