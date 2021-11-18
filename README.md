@@ -2,7 +2,7 @@ This application is not a replacement for a professional accountant. This applic
 Please do not use as a solution for your tax purposes. Please use commercial products like Koinly (paid) or Crypto.com Tax (free)
 
 
-Application can be viewed here : https://crypto-tax-shakepay.herokuapp.com/
+Node js verioson of application can be viewed here : https://crypto-tax-nodejs.herokuapp.com/
 
 migrated to Nodejs : https://github.com/Jordon-L/crypto-tax-shakepay-nodejs
 
